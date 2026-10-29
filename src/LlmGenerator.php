@@ -155,7 +155,7 @@ class LlmGenerator
                 if ($this->isExcluded($page)) continue;
 
                 $url      = $this->resolveUrl($page, $config);
-                $modified = $page->modified('Y-m-d') ?: date('Y-m-d');
+                $modified = date('Y-m-d', $page->modified() ?: time());
 
                 $lines[] = '  <url>';
                 $lines[] = '    <loc>' . htmlspecialchars($url, ENT_XML1) . '</loc>';

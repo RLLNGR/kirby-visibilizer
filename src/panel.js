@@ -45,6 +45,7 @@ const SeoPreview = {
         siteOgImage: false,
         siteOgImageUrl: null,
         autoImageUrl: null,
+        faviconUrl: null,
       },
     };
   },
@@ -136,6 +137,11 @@ const SeoPreview = {
 
     ogImageUrl() {
       return this.fileUrl(this.values.og_image) || this.fallbackImageUrl || this.ctx.siteOgImageUrl || this.ctx.autoImageUrl || null;
+    },
+
+    // Icône du site : en direct dans les réglages (champ favicon), sinon celle générée
+    faviconUrl() {
+      return (this.liveValues && this.fileUrl(this.values.favicon)) || this.ctx.faviconUrl || null;
     },
 
     twitterImageUrl() {
@@ -351,7 +357,10 @@ const SeoPreview = {
         <!-- Google SERP preview -->
         <div v-if="tab === 'google'" class="vis-google">
           <div class="vis-google-header">
-            <div class="vis-google-favicon">G</div>
+            <div class="vis-google-favicon" :class="{ 'vis-has-icon': faviconUrl }">
+              <img v-if="faviconUrl" :src="faviconUrl" alt="" />
+              <template v-else>G</template>
+            </div>
             <div>
               <div class="vis-google-site">{{ ctx.siteTitle }}</div>
               <div class="vis-google-url">{{ displayDomain }}{{ displayPath }}</div>
@@ -382,7 +391,10 @@ const SeoPreview = {
             <span v-else class="vis-og-placeholder">{{ $t('visibilizer.preview.placeholder.ogimage') }}</span>
           </div>
           <div class="vis-og-body">
-            <div class="vis-og-domain">{{ displayDomain.split('/')[0].toUpperCase() }}</div>
+            <div class="vis-og-domain">
+              <img v-if="faviconUrl" class="vis-domain-icon" :src="faviconUrl" alt="" />
+              {{ displayDomain.split('/')[0].toUpperCase() }}
+            </div>
             <div class="vis-og-title">{{ ogTitle || $t('visibilizer.preview.placeholder.title') }}</div>
             <div class="vis-og-desc">{{ ogDescription || $t('visibilizer.preview.placeholder.description') }}</div>
           </div>
@@ -397,7 +409,10 @@ const SeoPreview = {
           <div class="vis-twitter-body">
             <div class="vis-twitter-title">{{ ogTitle || $t('visibilizer.preview.placeholder.title') }}</div>
             <div class="vis-twitter-desc">{{ ogDescription || $t('visibilizer.preview.placeholder.description') }}</div>
-            <div class="vis-twitter-domain">{{ displayDomain.split('/')[0] }}</div>
+            <div class="vis-twitter-domain" :class="{ 'vis-has-icon': faviconUrl }">
+              <img v-if="faviconUrl" class="vis-domain-icon" :src="faviconUrl" alt="" />
+              {{ displayDomain.split('/')[0] }}
+            </div>
           </div>
         </div>
 
@@ -534,9 +549,24 @@ const SeoView = {
         siteDescription: '',
         siteOgImage: false,
         siteOgImageUrl: null,
-        autoImageUrl: null,
+        autoImageUrl: c.fallbackImageUrl || null,
+        faviconUrl: this.settings.icons.files['favicon-96x96.png'] || null,
         fallbacks: {},
       }
+    },
+    // Icônes générées, montrées comme elles apparaissent : onglet, écran d'accueil iOS et Android
+    iconPreviews() {
+      const f = this.settings.icons.files
+      if (!f || !f['favicon.ico']) return []
+      return [
+        { key: 'tab', src: f['favicon.svg'] || f['favicon-96x96.png'], label: 'favicon', size: '32' },
+        { key: 'apple', src: f['apple-touch-icon.png'], label: 'iOS', size: '180' },
+        { key: 'maskable', src: f['web-app-maskable-512x512.png'], label: 'Android', size: '512' },
+      ]
+    },
+    fileUsage() {
+      const names = { favicon: this.$t('visibilizer.files.favicon'), og_image: this.$t('visibilizer.files.og_image') }
+      return file => file.used.map(u => (u.page ? u.page : names[u.field] || u.field))
     },
     settingsChanged() {
       return JSON.stringify(this.form) !== JSON.stringify(this.settings.values)
@@ -683,6 +713,14 @@ const SeoView = {
         this.saving = false
       }
     },
+    uploadFiles() {
+      this.$panel.upload.pick({
+        url: this.$panel.urls.api + '/site/files',
+        accept: 'image/*',
+        multiple: true,
+        on: { done: () => this.$panel.view.reload() },
+      })
+    },
     resetSettings() {
       this.form = { ...this.settings.values }
     },
@@ -757,7 +795,23 @@ const SeoView = {
                 />
                 <k-fieldset :fields="group.fields" :value="form" :novalidate="true" @input="form = $event" />
               </div>
-              <k-fieldset v-else :key="group.key" class="k-vis-settings-group" :fields="group.fields" :value="form" :novalidate="true" @input="form = $event" />
+              <div v-else :key="group.key" class="k-vis-settings-group">
+                <k-fieldset :fields="group.fields" :value="form" :novalidate="true" @input="form = $event" />
+                <div v-if="group.key === 'icon_headline'" class="k-vis-icon-state">
+                  <div v-if="iconPreviews.length" class="k-vis-icon-previews">
+                    <figure v-for="p in iconPreviews" :key="p.key" :data-kind="p.key">
+                      <span class="k-vis-icon-frame"><img :src="p.src" alt="" /></span>
+                      <figcaption>{{ p.label }} <span class="k-vis-muted">{{ p.size }}</span></figcaption>
+                    </figure>
+                  </div>
+                  <ul class="k-vis-icon-checks">
+                    <li v-for="c in settings.icons.checks" :key="c.key + (c.data ? c.data.file || '' : '')">
+                      <span class="k-vis-dot" :data-level="c.level"></span>
+                      {{ $t('visibilizer.icon.' + c.key, c.data || {}) }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </template>
             <div class="k-vis-settings-bar">
               <span v-if="!settings.editable" class="k-vis-muted">{{ $t('visibilizer.settings.readonly') }}</span>
@@ -771,6 +825,32 @@ const SeoView = {
               </span>
             </div>
           </section>
+          <section class="k-vis-block">
+            <div class="k-vis-files-head">
+              <h2 class="k-vis-caption">{{ $t('visibilizer.files') }}</h2>
+              <button v-if="settings.editable" type="button" class="k-vis-button" @click="uploadFiles">
+                <k-icon type="upload" />
+                <span>{{ $t('visibilizer.files.upload') }}</span>
+              </button>
+            </div>
+            <p v-if="!settings.files.length" class="k-vis-message">{{ $t('visibilizer.empty') }}</p>
+            <ul v-else class="k-vis-files">
+              <li v-for="file in settings.files" :key="file.id">
+                <k-link :to="file.panel" class="k-vis-files-thumb">
+                  <img v-if="file.thumb" :src="file.thumb" alt="" loading="lazy" />
+                </k-link>
+                <span class="k-vis-files-info">
+                  <k-link :to="file.panel" class="k-vis-link">{{ file.filename }}</k-link>
+                  <span class="k-vis-path">{{ file.niceSize }}<template v-if="file.size"> · {{ file.size }}</template></span>
+                  <span class="k-vis-files-used">
+                    <span v-for="label in fileUsage(file)" :key="label" class="k-vis-badge">{{ label }}</span>
+                    <span v-if="!file.used.length" class="k-vis-badge k-vis-badge-warn">{{ $t('visibilizer.files.unused') }}</span>
+                  </span>
+                </span>
+              </li>
+            </ul>
+          </section>
+
           <section class="k-vis-block">
             <h2 class="k-vis-caption">{{ $t('visibilizer.config') }}</h2>
             <dl class="k-vis-config">

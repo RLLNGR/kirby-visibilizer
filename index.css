@@ -85,6 +85,7 @@
 }
 
 .vis-google-favicon {
+  overflow: hidden;
   width: 26px;
   height: 26px;
   background: #4285f4;
@@ -229,6 +230,28 @@
 .vis-og-body {
   padding: .75rem 1rem;
   border-top: 1px solid #e0e0e0;
+}
+
+.vis-google-favicon.vis-has-icon {
+  background: #f1f3f4;
+}
+
+.vis-google-favicon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.vis-domain-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: .3rem;
+  object-fit: contain;
+  vertical-align: -2px;
+}
+
+.vis-twitter-domain.vis-has-icon::before {
+  content: none;
 }
 
 .vis-og-domain {
@@ -770,6 +793,102 @@
 }
 .k-vis-config dd {
   overflow-wrap: anywhere;
+}
+
+/* ── Icône du site ──────────────────────────────── */
+.k-vis-icon-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 2rem;
+  margin-top: 1rem;
+  font-family: var(--m-sans);
+}
+.k-vis-icon-previews {
+  display: flex;
+  gap: 1rem;
+}
+.k-vis-icon-previews figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  text-transform: lowercase;
+}
+.k-vis-icon-frame {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  background: var(--m-bg);
+}
+.k-vis-icon-frame img {
+  display: block;
+}
+/* Comme à l'écran : 32 px dans un onglet, coins arrondis iOS, masque rond Android */
+[data-kind="tab"] .k-vis-icon-frame img { width: 32px; height: 32px; object-fit: contain; }
+[data-kind="apple"] .k-vis-icon-frame img { width: 60px; height: 60px; border-radius: 14px !important; }
+[data-kind="maskable"] .k-vis-icon-frame img { width: 60px; height: 60px; border-radius: 50% !important; }
+.k-vis-icon-checks {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+}
+.k-vis-icon-checks li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+/* ── Fichiers du site ───────────────────────────── */
+.k-vis-files-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.k-vis-files {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 2px;
+  font-size: 0.82rem;
+}
+.k-vis-files li {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  background: var(--m-bg);
+}
+.k-vis-files-thumb {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  background: var(--m-surface);
+}
+.k-vis-files-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.k-vis-files-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.k-vis-files-used {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.15rem;
+}
+.k-vis-files-used .k-vis-badge {
+  margin: 0;
+}
+.k-vis-badge-warn {
+  color: var(--l-warn);
 }
 
 /* ── Tableau ────────────────────────────────────── */

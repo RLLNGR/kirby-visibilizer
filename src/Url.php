@@ -22,8 +22,9 @@ class Url
     /** Adresse publique d'une page (dans une langue donnée en multilingue) */
     public static function page(Page $page, string|null $language = null): string
     {
-        if ($page->hasMethod('frontendUrl')) {
-            return static::slash((string) $page->frontendUrl($language));
+        // Méthode fournie par le site ou un plugin (ex. kirby-headless) ; ignorée si elle ne renvoie rien
+        if ($page->hasMethod('frontendUrl') && ($url = $page->frontendUrl($language))) {
+            return static::slash((string) $url);
         }
 
         return static::public($page->url($language));

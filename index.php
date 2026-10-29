@@ -6,6 +6,7 @@ use Kirby\Toolkit\I18n;
 use Kirby\Content\Field;
 use Rllngr\KirbyVisibilizer\Alt;
 use Rllngr\KirbyVisibilizer\Audit;
+use Rllngr\KirbyVisibilizer\Icons;
 use Rllngr\KirbyVisibilizer\LinkChecker;
 use Rllngr\KirbyVisibilizer\LlmGenerator;
 use Rllngr\KirbyVisibilizer\Meta;
@@ -23,6 +24,7 @@ load([
     'Rllngr\\KirbyVisibilizer\\Alt'          => __DIR__ . '/src/Alt.php',
     'Rllngr\\KirbyVisibilizer\\Settings'     => __DIR__ . '/src/Settings.php',
     'Rllngr\\KirbyVisibilizer\\Url'          => __DIR__ . '/src/Url.php',
+    'Rllngr\\KirbyVisibilizer\\Icons'        => __DIR__ . '/src/Icons.php',
     'Rllngr\\KirbyVisibilizer\\LinkChecker'  => __DIR__ . '/src/LinkChecker.php',
 ]);
 
@@ -90,6 +92,11 @@ App::plugin('rllngr/kirby-visibilizer', [
         /** @kql-allowed */
         'seo' => function () {
             return (new Meta(kirby(), $this))->toArray();
+        },
+        // Icône du site : balises, manifeste et adresses des fichiers générés
+        /** @kql-allowed */
+        'icons' => function () {
+            return (new Icons(kirby()))->toArray();
         },
     ],
 
@@ -192,6 +199,7 @@ App::plugin('rllngr/kirby-visibilizer', [
                             'siteOgImage'     => false,
                             'siteOgImageUrl'  => null,
                             'autoImageUrl'    => null,
+                            'faviconUrl'      => (new Icons($kirby))->previewUrl(),
                         ];
                     }
 
@@ -208,8 +216,9 @@ App::plugin('rllngr/kirby-visibilizer', [
                         'siteDescription' => $site->content()->get('seo_description')->or($site->description())->value() ?? '',
                         'siteOgImage'     => $site->content()->get('og_image')->toFile() !== null,
                         // Images de repli de l'aperçu (même ordre que Meta::ogImage)
-                        'siteOgImageUrl'  => $site->content()->get('og_image')->toFile()?->resize(1200)->url(),
+                        'siteOgImageUrl'  => (new Meta($kirby, $site))->ogImageFile()?->resize(1200)->url(),
                         'autoImageUrl'    => $page->images()->first()?->resize(1200)->url(),
+                        'faviconUrl'      => (new Icons($kirby))->previewUrl(),
                         // Champs de repli lus en direct par l'aperçu
                         'fallbacks'       => [
                             'title'       => $page->isHomePage() ? [] : $meta->fallbackFields('title'),
@@ -238,6 +247,9 @@ App::plugin('rllngr/kirby-visibilizer', [
         // Width of the shared image (og:image / twitter:image); null = original file
         'ogImageWidth' => 1200,
 
+        // File method returning an image for a non-image file (e.g. a video's poster: 'videozPanelImage')
+        'posterMethod' => null,
+
         // Page fields used when seo_title / seo_description / og_image are empty, per template ('*' = any):
         // 'description' => ['project' => 'introduction', '*' => ['intro', 'text']], 'image' => ['project' => 'cover']
         'fallbacks' => [
@@ -260,6 +272,8 @@ App::plugin('rllngr/kirby-visibilizer', [
         'robots' => [
             'enabled'  => true,
             'disallow' => ['/panel/', '/api/'],
+            // robots meta of unlisted pages (the home page excepted); null = same as listed pages
+            'unlisted' => 'noindex, nofollow',
             'sitemap'  => true, // reference sitemap(s) at the bottom
         ],
 
@@ -287,6 +301,12 @@ App::plugin('rllngr/kirby-visibilizer', [
         'alt' => [
             'template'  => null,
             'templates' => [],
+        ],
+
+        // Icône du site (favicon, icônes d'écran d'accueil, manifeste), générée depuis le champ `favicon` du site
+        'icons' => [
+            'enabled'  => true,
+            'manifest' => true,
         ],
 
         // Vue SEO du Panel
@@ -328,6 +348,28 @@ App::plugin('rllngr/kirby-visibilizer', [
         $opt    = $kirby->option('rllngr.kirby-visibilizer');
         $mode   = $opt['mode'] ?? 'classic';
         $routes = [];
+
+        // Icône du site : en classique à la racine, en headless sous __icons__/ (le front les sert à la racine)
+        $serveIcon = function (string $name) use ($kirby) {
+            $path = (new Icons($kirby))->file($name);
+            if (!$path) return false;
+            $mime = match (pathinfo($name, PATHINFO_EXTENSION)) {
+                'ico'         => 'image/x-icon',
+                'svg'         => 'image/svg+xml',
+                'webmanifest' => 'application/manifest+json',
+                default       => 'image/png',
+            };
+            return new \Kirby\Http\Response(file_get_contents($path), $mime, 200, ['Cache-Control' => 'public, max-age=86400']);
+        };
+
+        if ($kirby->option('rllngr.kirby-visibilizer.icons.enabled', true)) {
+            $names = 'favicon\.ico|favicon\.svg|site\.webmanifest|' . implode('|', array_map('preg_quote', array_keys(Icons::FILES)));
+            $routes[] = [
+                'pattern' => $mode === 'headless' ? '__icons__/(' . $names . ')' : '(' . $names . ')',
+                'method'  => 'GET',
+                'action'  => $serveIcon,
+            ];
+        }
 
         if ($mode === 'classic') {
 
@@ -422,6 +464,15 @@ App::plugin('rllngr/kirby-visibilizer', [
             ];
 
             // robots.txt et llms-sitemap.xml : le texte à servir tel quel
+            $routes[] = [
+                'pattern' => '__icons__',
+                'method'  => 'GET',
+                'action'  => function () use ($kirby) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    die(json_encode(['result' => (new Icons($kirby))->toArray()], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                },
+            ];
+
             $routes[] = [
                 'pattern' => '__robots__',
                 'method'  => 'GET',

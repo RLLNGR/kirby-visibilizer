@@ -45,6 +45,58 @@ og_image:
     en: "Recommended: 1200×630 px. Used when a page has no share image of its own."
     fr: "Recommandé : 1200×630 px. Utilisée quand une page n'a pas sa propre image de partage."
 
+icon_headline:
+  type: headline
+  label:
+    en: Site icon
+    fr: Icône du site
+  numbered: false
+
+favicon:
+  type: files
+  label:
+    en: Icon
+    fr: Icône
+  max: 2
+  query: site.files.filterBy("extension", "in", ["png", "svg", "jpg", "jpeg", "webp"])
+  uploads:
+    accept: image/png, image/svg+xml, image/jpeg, image/webp
+  layout: cards
+  size: tiny
+  help:
+    en: "A square PNG of at least 512×512 px — the favicon, Google's results, the home screen icon and the app manifest are generated from it. Add an SVG as well for browsers that use it."
+    fr: "Un PNG carré d'au moins 512×512 px : favicon, icône dans les résultats Google, icône d'écran d'accueil et manifeste d'application en sont générés. Ajoutez aussi un SVG pour les navigateurs qui le prennent."
+
+app_name:
+  type: text
+  label:
+    en: Short name
+    fr: Nom court
+  width: 1/3
+  help:
+    en: Under the icon on a home screen. Site title if empty.
+    fr: Sous l'icône sur un écran d'accueil. Titre du site si vide.
+
+theme_color:
+  type: color
+  label:
+    en: Theme color
+    fr: Couleur du thème
+  width: 1/3
+  help:
+    en: Browser bar on mobile.
+    fr: Barre du navigateur sur mobile.
+
+background_color:
+  type: color
+  label:
+    en: Background
+    fr: Fond
+  width: 1/3
+  help:
+    en: Behind the icon on iOS and Android, and while the app opens.
+    fr: Derrière l'icône sur iOS et Android, et à l'ouverture de l'app.
+
 geo_headline:
   type: headline
   label:

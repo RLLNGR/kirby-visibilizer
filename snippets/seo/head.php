@@ -43,3 +43,7 @@ $seo = new \Rllngr\KirbyVisibilizer\Meta(kirby(), $model);
 <?php foreach ($seo->hreflang() as $alt): ?>
 <link rel="alternate" hreflang="<?= esc($alt['hreflang']) ?>" href="<?= esc($alt['url']) ?>">
 <?php endforeach ?>
+
+<?php foreach ((new \Rllngr\KirbyVisibilizer\Icons(kirby()))->tags() as $tag): ?>
+<<?= $tag['tag'] ?><?php foreach ($tag as $attr => $value): if ($attr === 'tag') continue ?> <?= $attr ?>="<?= esc($value) ?>"<?php endforeach ?>>
+<?php endforeach ?>

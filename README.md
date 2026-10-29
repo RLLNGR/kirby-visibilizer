@@ -71,6 +71,8 @@ The Panel gets an **SEO** entry in its menu (`/panel/seo`), styled like the [mon
 - **Count default values** — on (default): titles and descriptions taken from elsewhere (page title, a template field, the site) are judged on what they produce in `<head>`. Off: anything not filled in the SEO tab is flagged. The choice is remembered in the browser and also applies to the live preview.
 - **Pages** — every page whose blueprint has the SEO fields: meta title and description as rendered in `<head>` (with a `default` / `site` badge when inherited), share image, indexing. Click a row to see its issues (length, duplicates, inherited values, missing image).
 - **Images** — alt text and weight of every image on those pages.
+- **Site icon** — in the Settings tab, a square PNG (≥ 512 px, plus an optional SVG), a short name and two colours. The plugin generates `favicon.ico` (16/32/48), `favicon-96x96.png`, `favicon.svg`, `apple-touch-icon.png` (180, on the background colour), `web-app-manifest-192x192.png` / `-512x512.png`, a maskable 512 icon and `site.webmanifest`, serves them at the site root and writes the `<link>` / `theme-color` tags from `seo/head`. A static file of the same name at the root wins over the plugin's route: the Settings tab flags it. The icon also shows in the Google, social and X previews.
+- **Site files** — the site's files with what uses each one (icon, share image, a page) or an *unused* badge, and an upload button.
 - **Settings** — site-wide defaults, saved straight into the site content (no draft / publish step), in the Panel's current language; requires the permission to update the site. Below them, what is set in `config.php` (fallbacks, alt templates, separator…) is shown read-only.
 - **Links** — links found in the content (HTML, Markdown, KirbyText, link fields, `page://` / `file://` UUIDs) with the pages they come from. Internal links are resolved by Kirby directly (no HTTP request); external links are checked from the server in small batches and cached for a week. *Recheck all* forces a new check.
 
@@ -275,6 +277,8 @@ The file routes (`sitemap.xml`, `robots.txt`, `llms*.txt`) are disabled and the 
 | `/__seo__?page=projects/moncler` | `{ result: seo }` for the page — `404` with `{ result: null }` if it does not exist or is a draft |
 | `/__seo__` | `{ result: seo }` for the site |
 | `/__seo-sitemap__` | `{ result: [{ loc, lastmod, alternates: [{ hreflang, href }] }] }` — published pages, exclusions and noindex removed |
+| `/__icons__` | `{ result: { enabled, tags, manifest, files } }` — the icon's `<head>` tags, the web manifest and the URL of every generated file (also `site.icons` in KQL) |
+| `/__icons__/favicon.ico` … | the generated files themselves — serve them at the front end's root (`/favicon.ico`, `/apple-touch-icon.png`, `/site.webmanifest`…) |
 | `/__robots__` | `{ result: { text } }` — robots.txt to serve as is |
 | `/__llms__` · `/__llms-full__` | llms.txt data as JSON |
 | `/__llms-sitemap__` | `{ result: { xml } }` |
@@ -286,6 +290,7 @@ These endpoints are public (it is public data), whatever the KQL authentication.
 - Fill the `<head>` from `seo` (e.g. Nuxt's `useSeoMeta` / `useHead`), with `schema` in a `<script type="application/ld+json">`.
 - Serve `/sitemap.xml`, `/robots.txt`, `/llms.txt` (and `/llms-sitemap.xml`) from server routes built on the endpoints above.
 - Use `altText` instead of `alt` in image queries.
+- Write `site.icons.tags` in the `<head>` and proxy `/favicon.ico`, `/favicon.svg`, `/favicon-96x96.png`, `/apple-touch-icon.png`, `/web-app-*.png` and `/site.webmanifest` to `/__icons__/<name>`.
 - In the Panel, everything works as in classic mode: SEO tabs, live preview, SEO view and its settings.
 
 ---|---|

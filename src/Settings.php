@@ -48,11 +48,17 @@ class Settings
             'values'   => array_intersect_key($form->toFormValues(), array_flip(static::keys())),
             'editable' => $kirby->site()->permissions()->can('update'),
             'config'   => static::config($kirby),
+            'icons'    => static::icons($kirby),
+            'files'    => static::files($kirby),
             // Contexte de l'aperçu (page d'accueil)
             'context'  => [
                 'siteTitle' => $kirby->site()->title()->value(),
                 'siteUrl'   => Url::site(),
                 'separator' => $kirby->option('rllngr.kirby-visibilizer.titleSeparator', ' — '),
+                // Image de repli du site (fallbacks.image.site), montrée quand le champ est vide
+                'fallbackImageUrl' => ($file = (new Meta($kirby, $kirby->site()))->ogImageSource())['source'] === 'field'
+                    ? $file['file']->resize(1200)->url()
+                    : null,
             ],
         ];
     }
@@ -66,6 +72,68 @@ class Settings
         $kirby->site()->update($values, $kirby->language()?->code());
 
         return static::props($kirby);
+    }
+
+    /** État de l'icône : contrôles et fichiers générés (à partir des réglages enregistrés) */
+    protected static function icons(App $kirby): array
+    {
+        $icons = new Icons($kirby);
+        $files = $icons->enabled() ? $icons->toArray()['files'] : [];
+
+        return [
+            'checks' => $icons->checks(),
+            'files'  => $files,
+        ];
+    }
+
+    /**
+     * Fichiers du site, avec ce qui les utilise : un champ du site (icône, image de partage…)
+     * ou une page qui les cite. Un fichier que rien ne cite est signalé.
+     */
+    protected static function files(App $kirby): array
+    {
+        $site     = $kirby->site();
+        $siteData = $site->content()->toArray();
+        $pages    = $site->index(drafts: false);
+        $rows     = [];
+
+        foreach ($site->files() as $file) {
+            $needles = array_filter([$file->uuid()?->toString(), $file->filename()]);
+            $used    = [];
+
+            foreach ($siteData as $key => $value) {
+                if (!is_string($value) || $key === 'uuid') continue;
+                foreach ($needles as $needle) {
+                    if (str_contains($value, $needle)) {
+                        $used[] = ['field' => $key];
+                        break;
+                    }
+                }
+            }
+
+            foreach ($pages as $page) {
+                $raw = implode("\n", array_filter($page->content()->toArray(), 'is_string'));
+                foreach ($needles as $needle) {
+                    if (str_contains($raw, $needle)) {
+                        $used[] = ['page' => $page->title()->value(), 'panel' => $page->panel()->url()];
+                        break;
+                    }
+                }
+            }
+
+            $rows[] = [
+                'id'       => $file->id(),
+                'filename' => $file->filename(),
+                'thumb'    => $file->isResizable() ? $file->thumb(['width' => 160, 'height' => 160, 'crop' => true])->url() : ($file->type() === 'image' ? $file->url() : null),
+                'url'      => $file->url(),
+                'panel'    => $file->panel()->url(),
+                'niceSize' => $file->niceSize(),
+                'size'     => $file->type() === 'image' && $file->width() ? $file->width() . ' × ' . $file->height() : null,
+                'used'     => $used,
+            ];
+        }
+
+        return $rows;
     }
 
     /** Ce qui se règle dans config.php, affiché en lecture seule */

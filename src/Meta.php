@@ -165,8 +165,7 @@ class Meta
         }
 
         foreach ($this->fallbackFields('image') as $name) {
-            $file = $this->model->content()->get($name)->toFile();
-            if ($file && $file->type() === 'image') {
+            if ($file = $this->imageOf($this->model->content()->get($name)->toFile())) {
                 return ['file' => $file, 'source' => 'field', 'field' => $name];
             }
         }
@@ -175,11 +174,37 @@ class Meta
             return ['file' => $file, 'source' => $this->model instanceof Site ? 'custom' : 'site', 'field' => null];
         }
 
+        // Champ image du site (`fallbacks.image.site`), ex. la couverture du site
+        $siteFields = (array) ($this->options['fallbacks']['image']['site'] ?? []);
+        foreach ($siteFields as $name) {
+            if ($file = $this->imageOf($this->kirby->site()->content()->get($name)->toFile())) {
+                return ['file' => $file, 'source' => $this->model instanceof Site ? 'field' : 'site', 'field' => $this->model instanceof Site ? $name : null];
+            }
+        }
+
         if ($this->model instanceof Page && $file = $this->model->images()->first()) {
             return ['file' => $file, 'source' => 'auto', 'field' => null];
         }
 
         return ['file' => null, 'source' => 'none', 'field' => null];
+    }
+
+    /**
+     * Une image partageable : le fichier s'il est une image, sinon son poster
+     * (`posterMethod`, ex. 'videozPanelImage' pour une vidéo de videozer).
+     */
+    protected function imageOf(?File $file): ?File
+    {
+        if (!$file) return null;
+        if ($file->type() === 'image') return $file;
+
+        $method = $this->options['posterMethod'] ?? null;
+        if ($method && $file->hasMethod($method)) {
+            $poster = $file->$method();
+            if ($poster instanceof File && $poster->type() === 'image') return $poster;
+        }
+
+        return null;
     }
 
     public function ogImageFile(): ?File
@@ -252,9 +277,16 @@ class Meta
 
     public function robots(): string
     {
-        // Unlisted and draft pages are always noindex
-        if ($this->model instanceof Page && $this->model->status() !== 'listed') {
+        // Brouillons : jamais indexés. Pages non listées : `robots.unlisted` (noindex par défaut),
+        // sauf la page d'accueil, souvent non listée (dossier « home » sans numéro)
+        if ($this->model instanceof Page && $this->model->isDraft()) {
             return 'noindex, nofollow';
+        }
+
+        if ($this->model instanceof Page && $this->model->isUnlisted() && !$this->model->isHomePage()) {
+            $robots   = $this->options['robots'] ?? [];
+            $unlisted = array_key_exists('unlisted', $robots) ? $robots['unlisted'] : 'noindex, nofollow';
+            if ($unlisted) return $unlisted;
         }
 
         return $this->field('seo_robots') ?: 'index, follow';
@@ -350,6 +382,8 @@ class Meta
             'canonical'      => $this->canonical(),
             'hreflang'       => $this->hreflang(),
             'schema'         => $this->schema(),
+            // D'où vient chaque valeur : custom | field | default / site / auto | none
+            'sources'        => array_intersect_key($this->sources(), array_flip(['title', 'description', 'image'])),
         ];
     }
 

@@ -55,7 +55,7 @@ class Sitemap
 
             $entries[] = [
                 'loc'        => Url::page($page),
-                'lastmod'    => $page->modified('Y-m-d') ?: date('Y-m-d'),
+                'lastmod'    => date('Y-m-d', $page->modified() ?: time()),
                 'alternates' => $alternates,
             ];
         }
