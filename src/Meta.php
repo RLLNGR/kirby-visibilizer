@@ -28,21 +28,38 @@ class Meta
 
     public function title(): string
     {
-        $site      = $this->kirby->site();
-        $siteTitle = $site->title()->value();
+        $siteTitle = $this->kirby->site()->title()->value();
         $separator = $this->options['titleSeparator'] ?? ' — ';
 
-        if ($this->model instanceof Site) {
-            return $siteTitle;
+        if ($this->isHome()) {
+            return $this->homeTitle();
         }
 
-        $pageTitle = $this->field('seo_title', 'metaTitle') ?: $this->model->title()->value();
+        $pageTitle = $this->field('seo_title', 'metaTemplate') ?: $this->model->title()->value();
 
         if ($pageTitle === $siteTitle) {
             return $siteTitle;
         }
 
         return $pageTitle . $separator . $siteTitle;
+    }
+
+    /**
+     * Site and home page: page seo_title → site seo_title → site title,
+     * without the separator suffix.
+     */
+    protected function homeTitle(): string
+    {
+        if ($this->model instanceof Page && $value = $this->field('seo_title', 'metaTemplate')) {
+            return $value;
+        }
+
+        return $this->siteField('seo_title', 'metaTemplate') ?: $this->kirby->site()->title()->value();
+    }
+
+    protected function isHome(): bool
+    {
+        return $this->model instanceof Site || $this->model->isHomePage();
     }
 
     // -------------------------------------------------------------------------
@@ -54,7 +71,7 @@ class Meta
         $value = $this->field('seo_description', 'metaDescription');
 
         if (!$value && $this->model instanceof Page) {
-            $value = $this->siteField('seo_description');
+            $value = $this->siteField('seo_description', 'metaDescription');
         }
 
         if (!$value) {
@@ -70,19 +87,19 @@ class Meta
 
     public function ogTitle(): string
     {
-        $override = $this->field('og_title');
+        $override = $this->field('og_title', 'ogTemplate');
         if ($override) return $override;
 
-        if ($this->model instanceof Page) {
-            return $this->field('seo_title', 'metaTitle') ?: $this->model->title()->value();
+        if ($this->isHome()) {
+            return $this->homeTitle();
         }
 
-        return $this->kirby->site()->title()->value();
+        return $this->field('seo_title', 'metaTemplate') ?: $this->model->title()->value();
     }
 
     public function ogDescription(): string
     {
-        $override = $this->field('og_description');
+        $override = $this->field('og_description', 'ogDescription');
         if ($override) return $override;
 
         return $this->description();
@@ -94,7 +111,7 @@ class Meta
         if ($file) return $file->url();
 
         // Site-level fallback
-        $siteFile = $this->resolveSiteFileField('og_image');
+        $siteFile = $this->resolveSiteFileField('og_image', 'ogImage');
         if ($siteFile) return $siteFile->url();
 
         // Auto: first image attached to the page
@@ -148,7 +165,7 @@ class Meta
             return 'noindex, nofollow';
         }
 
-        return $this->field('seo_robots', 'robots') ?: 'index, follow';
+        return $this->field('seo_robots') ?: 'index, follow';
     }
 
     public function canonical(): string
@@ -214,7 +231,7 @@ class Meta
      * Read a field from the current model.
      * $compat is only checked when the kirby-seo compat option is enabled.
      */
-    protected function field(string $primary, string $compat = null): string
+    protected function field(string $primary, ?string $compat = null): string
     {
         $value = $this->model->content()->get($primary)->value();
         if ($value) return $value;
@@ -227,15 +244,23 @@ class Meta
         return '';
     }
 
-    protected function siteField(string $name): string
+    protected function siteField(string $name, ?string $compat = null): string
     {
-        return $this->kirby->site()->content()->get($name)->value() ?? '';
+        $value = $this->kirby->site()->content()->get($name)->value();
+        if ($value) return $value;
+
+        if ($compat && $this->compat) {
+            $value = $this->kirby->site()->content()->get($compat)->value();
+            if ($value) return $value;
+        }
+
+        return '';
     }
 
     /**
      * Resolve a files field (type: files, max: 1) to its File object.
      */
-    protected function resolveFileField(string $primary, string $compat = null): ?File
+    protected function resolveFileField(string $primary, ?string $compat = null): ?File
     {
         $field = $this->model->content()->get($primary);
 
@@ -248,9 +273,14 @@ class Meta
         return $field->toFile();
     }
 
-    protected function resolveSiteFileField(string $name): ?File
+    protected function resolveSiteFileField(string $name, ?string $compat = null): ?File
     {
         $field = $this->kirby->site()->content()->get($name);
+
+        if ($field->isEmpty() && $compat && $this->compat) {
+            $field = $this->kirby->site()->content()->get($compat);
+        }
+
         if ($field->isEmpty()) return null;
 
         return $field->toFile();

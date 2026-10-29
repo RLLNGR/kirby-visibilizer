@@ -7,7 +7,8 @@ panel.plugin('rllngr/kirby-visibilizer', {
       // -----------------------------------------------------------------------
 
       props: {
-        label: { type: String, default: 'SEO Preview' },
+        label:  { type: [String, Object], default: 'SEO Preview' },
+        parent: String,
       },
 
       // -----------------------------------------------------------------------
@@ -23,6 +24,10 @@ panel.plugin('rllngr/kirby-visibilizer', {
             pageUrl:   '',
             siteUrl:   '',
             separator: ' — ',
+            isHome:    false,
+            homeTitle: '',
+            siteDescription: '',
+            siteOgImage: false,
           },
         };
       },
@@ -33,9 +38,14 @@ panel.plugin('rllngr/kirby-visibilizer', {
 
       computed: {
 
-        // Live field values from the Kirby panel content store (includes unsaved edits)
+        // Live field values (includes unsaved edits)
         values() {
           try {
+            // Kirby 5
+            if (this.$panel?.content?.version) {
+              return this.$panel.content.version('changes') || {};
+            }
+            // Kirby 4
             const id    = this.$store.state.content?.current;
             const model = this.$store.state.content?.models?.[id];
             return { ...model?.originals, ...model?.changes };
@@ -45,18 +55,20 @@ panel.plugin('rllngr/kirby-visibilizer', {
         },
 
         seoTitle() {
+          if (this.ctx.isHome) return this.values.seo_title || this.ctx.homeTitle || '';
           return this.values.seo_title || this.ctx.pageTitle || '';
         },
 
         fullTitle() {
           const t = this.seoTitle;
           const s = this.ctx.siteTitle;
+          if (this.ctx.isHome) return t || s;
           if (!t || t === s) return s;
           return `${t}${this.ctx.separator}${s}`;
         },
 
         seoDescription() {
-          return this.values.seo_description || '';
+          return this.values.seo_description || this.ctx.siteDescription || '';
         },
 
         ogTitle() {
@@ -69,6 +81,7 @@ panel.plugin('rllngr/kirby-visibilizer', {
 
         hasOgImage() {
           const v = this.values.og_image;
+          if (Array.isArray(v)) return v.length > 0;
           return !!(v && v.trim() && v.trim() !== '-');
         },
 
@@ -85,9 +98,9 @@ panel.plugin('rllngr/kirby-visibilizer', {
         },
 
         displayDomain() {
-          return (this.ctx.pageUrl || this.ctx.siteUrl || '')
+          return (this.ctx.siteUrl || this.ctx.pageUrl || '')
             .replace(/^https?:\/\//, '')
-            .replace(/\/$/, '');
+            .replace(/\/.*$/, '');
         },
 
         displayPath() {
@@ -140,6 +153,8 @@ panel.plugin('rllngr/kirby-visibilizer', {
           // Description
           if (!this.seoDescription) {
             items.push({ status: 'error', msg: 'Meta description missing' });
+          } else if (!this.values.seo_description) {
+            items.push({ status: 'warn', msg: 'Meta description not set — site description used as fallback' });
           } else if (this.descLength > 160) {
             items.push({ status: 'warn', msg: `Description too long — ${this.descLength} / 160 chars` });
           } else if (this.descLength < 80) {
@@ -149,7 +164,9 @@ panel.plugin('rllngr/kirby-visibilizer', {
           }
 
           // OG image
-          if (!this.hasOgImage) {
+          if (!this.hasOgImage && this.ctx.siteOgImage) {
+            items.push({ status: 'warn', msg: 'OG image not set — site image used as fallback' });
+          } else if (!this.hasOgImage) {
             items.push({ status: 'warn', msg: 'OG image not set — social shares will have no image' });
           } else {
             items.push({ status: 'ok', msg: 'OG image set' });
@@ -181,6 +198,13 @@ panel.plugin('rllngr/kirby-visibilizer', {
           if (this.score >= 50) return 'warn';
           return 'error';
         },
+
+        resolvedLabel() {
+          const l = this.label;
+          if (typeof l === 'string') return l;
+          const lang = document.documentElement.lang || 'en';
+          return l[lang] || l.en || Object.values(l)[0] || 'SEO Preview';
+        },
       },
 
       // -----------------------------------------------------------------------
@@ -198,9 +222,10 @@ panel.plugin('rllngr/kirby-visibilizer', {
       methods: {
         async loadContext() {
           try {
-            const id   = this.$store.state.content?.current;
-            if (!id) return;
-            const slug = id.replace(/\//g, '+');
+            // e.g. "pages/projects+hospitality" or "site"
+            const parent = this.parent || this.$panel?.view?.props?.api || this.$store?.state?.content?.current || '';
+            const match  = parent.replace(/^\//, '').match(/^pages\/(.+)$/);
+            const slug   = match ? match[1].replace(/\//g, '+') : 'site';
             const data = await this.$api.get(`rllngr/visibilizer/${slug}`);
             if (data) this.ctx = data;
           } catch {
@@ -214,7 +239,7 @@ panel.plugin('rllngr/kirby-visibilizer', {
       // -----------------------------------------------------------------------
 
       template: `
-        <k-section :label="label">
+        <k-section :label="resolvedLabel">
           <div class="vis-preview">
 
             <!-- Score badge -->

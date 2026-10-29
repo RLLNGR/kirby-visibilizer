@@ -1,6 +1,7 @@
 <?php
 
 use Kirby\Cms\App;
+use Kirby\Toolkit\I18n;
 use Rllngr\KirbyVisibilizer\LlmGenerator;
 use Rllngr\KirbyVisibilizer\Meta;
 use Rllngr\KirbyVisibilizer\Robots;
@@ -27,6 +28,7 @@ App::plugin('rllngr/kirby-visibilizer', [
                     $page    = $kirby->page($pageId);
 
                     $separator = $kirby->option('rllngr.kirby-visibilizer.titleSeparator', ' — ');
+                    $homeTitle = $site->content()->get('seo_title')->or($site->title())->value();
 
                     if (!$page) {
                         return [
@@ -35,6 +37,11 @@ App::plugin('rllngr/kirby-visibilizer', [
                             'pageUrl'   => $site->url(),
                             'siteUrl'   => $site->url(),
                             'separator' => $separator,
+                            'isHome'    => true,
+                            // Site values come from the edited fields themselves
+                            'homeTitle' => $site->title()->value(),
+                            'siteDescription' => '',
+                            'siteOgImage'     => false,
                         ];
                     }
 
@@ -44,6 +51,10 @@ App::plugin('rllngr/kirby-visibilizer', [
                         'pageUrl'   => $page->url(),
                         'siteUrl'   => $site->url(),
                         'separator' => $separator,
+                        'isHome'    => $page->isHomePage(),
+                        'homeTitle' => $homeTitle,
+                        'siteDescription' => $site->content()->get('seo_description')->or($site->description())->value() ?? '',
+                        'siteOgImage'     => $site->content()->get('og_image')->toFile() !== null,
                     ];
                 },
             ],
@@ -103,9 +114,12 @@ App::plugin('rllngr/kirby-visibilizer', [
         ],
     ],
 
-    'panel' => [
-        'js'  => __DIR__ . '/panel/index.js',
-        'css' => __DIR__ . '/panel/index.css',
+    'sections' => [
+        'seo-preview' => [
+            'props' => [
+                'label' => fn ($label = null) => I18n::translate($label, $label),
+            ],
+        ],
     ],
 
     'blueprints' => [

@@ -13,29 +13,29 @@
 $model ??= $page ?? site();
 $seo = new \Rllngr\KirbyVisibilizer\Meta(kirby(), $model);
 ?>
-<title><?= esc($seo->title(), 'attr') ?></title>
-<meta name="description" content="<?= esc($seo->description(), 'attr') ?>">
-<meta name="robots" content="<?= esc($seo->robots(), 'attr') ?>">
-<link rel="canonical" href="<?= esc($seo->canonical(), 'attr') ?>">
+<title><?= esc($seo->title()) ?></title>
+<meta name="description" content="<?= esc($seo->description()) ?>">
+<meta name="robots" content="<?= esc($seo->robots()) ?>">
+<link rel="canonical" href="<?= esc($seo->canonical()) ?>">
 
 <!-- OpenGraph -->
-<meta property="og:type" content="<?= esc($seo->ogType(), 'attr') ?>">
-<meta property="og:title" content="<?= esc($seo->ogTitle(), 'attr') ?>">
-<meta property="og:description" content="<?= esc($seo->ogDescription(), 'attr') ?>">
-<meta property="og:url" content="<?= esc($seo->canonical(), 'attr') ?>">
+<meta property="og:type" content="<?= esc($seo->ogType()) ?>">
+<meta property="og:title" content="<?= esc($seo->ogTitle()) ?>">
+<meta property="og:description" content="<?= esc($seo->ogDescription()) ?>">
+<meta property="og:url" content="<?= esc($seo->canonical()) ?>">
 <?php if ($ogImage = $seo->ogImage()): ?>
-<meta property="og:image" content="<?= esc($ogImage, 'attr') ?>">
-<meta property="og:image:alt" content="<?= esc($seo->ogImageAlt(), 'attr') ?>">
+<meta property="og:image" content="<?= esc($ogImage) ?>">
+<meta property="og:image:alt" content="<?= esc($seo->ogImageAlt()) ?>">
 <?php endif ?>
 
 <!-- Twitter / X Card -->
-<meta name="twitter:card" content="<?= esc($seo->twitterCard(), 'attr') ?>">
-<meta name="twitter:title" content="<?= esc($seo->ogTitle(), 'attr') ?>">
-<meta name="twitter:description" content="<?= esc($seo->ogDescription(), 'attr') ?>">
+<meta name="twitter:card" content="<?= esc($seo->twitterCard()) ?>">
+<meta name="twitter:title" content="<?= esc($seo->ogTitle()) ?>">
+<meta name="twitter:description" content="<?= esc($seo->ogDescription()) ?>">
 <?php if ($twitterImage = $seo->twitterImage()): ?>
-<meta name="twitter:image" content="<?= esc($twitterImage, 'attr') ?>">
+<meta name="twitter:image" content="<?= esc($twitterImage) ?>">
 <?php endif ?>
 
 <?php foreach ($seo->hreflang() as $alt): ?>
-<link rel="alternate" hreflang="<?= esc($alt['hreflang'], 'attr') ?>" href="<?= esc($alt['url'], 'attr') ?>">
+<link rel="alternate" hreflang="<?= esc($alt['hreflang']) ?>" href="<?= esc($alt['url']) ?>">
 <?php endforeach ?>

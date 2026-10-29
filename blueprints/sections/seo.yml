@@ -11,7 +11,6 @@ fields:
       en: SEO Title
       fr: Titre SEO
     counter: true
-    maxlength: 60
     help:
       en: "Overrides the page title in search results. Ideal: 40–60 characters."
       fr: "Remplace le titre de la page dans les résultats. Idéal : 40–60 caractères."
@@ -26,7 +25,6 @@ fields:
       fr: Méta description
     buttons: false
     counter: true
-    maxlength: 160
     size: small
     help:
       en: "Appears in search results below the title. Ideal: 120–160 characters."
