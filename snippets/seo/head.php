@@ -26,6 +26,10 @@ $seo = new \Rllngr\KirbyVisibilizer\Meta(kirby(), $model);
 <?php if ($ogImage = $seo->ogImage()): ?>
 <meta property="og:image" content="<?= esc($ogImage) ?>">
 <meta property="og:image:alt" content="<?= esc($seo->ogImageAlt()) ?>">
+<?php if ($size = $seo->ogImageSize()): ?>
+<meta property="og:image:width" content="<?= $size['width'] ?>">
+<meta property="og:image:height" content="<?= $size['height'] ?>">
+<?php endif ?>
 <?php endif ?>
 
 <!-- Twitter / X Card -->

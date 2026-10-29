@@ -120,8 +120,17 @@ const SeoPreview = {
     },
 
     // Image réellement partagée : champ de la page (valeur en direct), sinon image du site, sinon première image
+    // Champ image de repli du template (fallbacks.image), lu en direct
+    fallbackImageUrl() {
+      for (const name of this.ctx.fallbacks?.image || []) {
+        const url = this.fileUrl(this.values[name]);
+        if (url) return url;
+      }
+      return null;
+    },
+
     ogImageUrl() {
-      return this.fileUrl(this.values.og_image) || this.ctx.siteOgImageUrl || this.ctx.autoImageUrl || null;
+      return this.fileUrl(this.values.og_image) || this.fallbackImageUrl || this.ctx.siteOgImageUrl || this.ctx.autoImageUrl || null;
     },
 
     twitterImageUrl() {
@@ -214,7 +223,9 @@ const SeoPreview = {
       }
 
       // OG image
-      if (!this.hasOgImage && this.ctx.siteOgImage) {
+      if (!this.hasOgImage && this.fallbackImageUrl) {
+        items.push({ status: fallback, msg: t('image.field', { field: (this.ctx.fallbacks?.image || []).join(', ') }) });
+      } else if (!this.hasOgImage && this.ctx.siteOgImage) {
         items.push({ status: fallback, msg: t('image.site') });
       } else if (!this.hasOgImage && this.ctx.autoImageUrl) {
         items.push({ status: fallback, msg: t('image.auto') });
@@ -715,9 +726,9 @@ const SeoView = {
                   <span v-if="row.description.value" :class="{ 'k-vis-muted': row.description.source !== 'custom' }">{{ row.description.value }}</span>
                   <span v-else class="k-vis-muted">{{ $t('visibilizer.none') }}</span>
                 </span>
-                <span class="k-vis-cell-thumb">
+                <span class="k-vis-cell-thumb" :data-level="checkLevel(row.checks.image)">
                   <img v-if="row.image && row.image.thumb" :src="row.image.thumb" alt="" loading="lazy" />
-                  <span v-else class="k-vis-thumb-empty"></span>
+                  <span v-if="row.image && row.image.source !== 'custom'" class="k-vis-badge k-vis-thumb-badge" :title="sourceLabel(row.image)">{{ row.image.source === 'field' ? row.image.field : sourceLabel(row.image) }}</span>
                 </span>
                 <span class="k-vis-cell-index">
                   <span class="k-vis-dot" :data-level="row.indexable ? 'ok' : 'off'" :title="row.indexable ? $t('visibilizer.indexable') : $t('visibilizer.noindex', { robots: row.robots })"></span>

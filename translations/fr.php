@@ -86,6 +86,9 @@ return [
     'visibilizer.issue.desc_short'      => 'Description trop courte : {length} car. (idéal ≥ {min})',
     'visibilizer.issue.desc_shortish'   => 'Description un peu courte : {length} car. (idéal ≥ {min})',
     'visibilizer.issue.image_missing'   => 'Aucune image de partage',
+    'visibilizer.issue.image_field' => "Image de partage non définie : champ « {field} » utilisé",
+    'visibilizer.issue.image_site' => "Image de partage du site reprise",
+    'visibilizer.issue.image_auto' => "Image de partage non définie : première image de la page utilisée",
     'visibilizer.issue.alt_missing'     => 'Pas de texte alternatif',
     'visibilizer.issue.image_heavy'     => 'Image lourde : {size}',
 
@@ -129,6 +132,7 @@ return [
     'visibilizer.preview.desc.site' => 'Description SEO non renseignée : description du site utilisée',
     'visibilizer.preview.image.ok' => 'Image de partage définie',
     'visibilizer.preview.image.site' => 'Pas d’image de partage : image du site utilisée',
+    'visibilizer.preview.image.field' => "Pas d’image de partage : champ « {field} » utilisé",
     'visibilizer.preview.image.auto' => 'Pas d’image de partage : première image de la page utilisée',
     'visibilizer.preview.image.missing' => 'Pas d’image de partage : les partages n’auront pas d’image',
 

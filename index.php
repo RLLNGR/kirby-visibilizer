@@ -165,6 +165,7 @@ App::plugin('rllngr/kirby-visibilizer', [
                         'fallbacks'       => [
                             'title'       => $page->isHomePage() ? [] : $meta->fallbackFields('title'),
                             'description' => $meta->fallbackFields('description'),
+                            'image'       => $meta->fallbackFields('image'),
                             'length'      => $kirby->option('rllngr.kirby-visibilizer.fallbacks.length', 160),
                         ],
                     ];
@@ -185,11 +186,15 @@ App::plugin('rllngr/kirby-visibilizer', [
         // Separator between page title and site name
         'titleSeparator' => ' — ',
 
-        // Page fields used when seo_title / seo_description are empty, per template ('*' = any):
-        // 'description' => ['project' => 'introduction', '*' => ['intro', 'text']]
+        // Width of the shared image (og:image / twitter:image); null = original file
+        'ogImageWidth' => 1200,
+
+        // Page fields used when seo_title / seo_description / og_image are empty, per template ('*' = any):
+        // 'description' => ['project' => 'introduction', '*' => ['intro', 'text']], 'image' => ['project' => 'cover']
         'fallbacks' => [
             'title'       => [],
             'description' => [],
+            'image'       => [],
             'length'      => 160,
         ],
 

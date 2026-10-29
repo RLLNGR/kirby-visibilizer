@@ -86,6 +86,9 @@ return [
     'visibilizer.issue.desc_short'      => 'Description too short: {length} chars (ideal ≥ {min})',
     'visibilizer.issue.desc_shortish'   => 'Description a bit short: {length} chars (ideal ≥ {min})',
     'visibilizer.issue.image_missing'   => 'No share image',
+    'visibilizer.issue.image_field' => "No share image: “{field}” field used",
+    'visibilizer.issue.image_site' => "Site share image reused",
+    'visibilizer.issue.image_auto' => "No share image: first image of the page used",
     'visibilizer.issue.alt_missing'     => 'No alt text',
     'visibilizer.issue.image_heavy'     => 'Heavy image: {size}',
 
@@ -129,6 +132,7 @@ return [
     'visibilizer.preview.desc.site' => 'No SEO description: site description used',
     'visibilizer.preview.image.ok' => 'Share image set',
     'visibilizer.preview.image.site' => 'No share image: site image used',
+    'visibilizer.preview.image.field' => "No share image: “{field}” field used",
     'visibilizer.preview.image.auto' => 'No share image: first image of the page used',
     'visibilizer.preview.image.missing' => 'No share image: shares will have no image',
 

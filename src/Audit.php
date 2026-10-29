@@ -71,7 +71,7 @@ class Audit
                 'status'      => $page->status(),
                 'metaTitle'   => ['value' => $meta->title(), 'source' => $sources['title'], 'field' => $sources['titleField']],
                 'description' => ['value' => $meta->description(), 'source' => $sources['description'], 'field' => $sources['descriptionField']],
-                'image'       => $image ? ['thumb' => $this->thumb($image), 'source' => $sources['image']] : null,
+                'image'       => $image ? ['thumb' => $this->thumb($image), 'source' => $sources['image'], 'field' => $sources['imageField']] : null,
                 'robots'      => $meta->robots(),
                 'indexable'   => !str_contains($meta->robots(), 'noindex'),
             ];
@@ -88,7 +88,7 @@ class Audit
             $row['checks'] = [
                 'title'       => $this->checkTitle($row, $titles),
                 'description' => $this->checkDescription($row, $descs),
-                'image'       => $row['image'] ? ['level' => 'ok', 'issues' => []] : ['level' => 'warn', 'issues' => [['key' => 'image_missing', 'level' => 'warn']]],
+                'image'       => $this->checkImage($row),
             ];
             $row['level'] = $this->worst(array_column($row['checks'], 'level'));
         }
@@ -161,6 +161,18 @@ class Audit
         }
 
         return $this->check($issues, $length);
+    }
+
+    protected function checkImage(array $row): array
+    {
+        if (!$row['image']) {
+            return $this->check([['key' => 'image_missing', 'level' => 'warn']], 0);
+        }
+
+        $source = $row['image']['source'];
+        $issues = $source === 'custom' ? [] : [['key' => 'image_' . $source, 'level' => 'warn', 'fallback' => true, 'data' => ['field' => $row['image']['field']]]];
+
+        return $this->check($issues, 0);
     }
 
     protected function check(array $issues, int $length): array

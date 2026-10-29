@@ -152,7 +152,7 @@ Site-level fields (in `site.yml`) follow the same names and serve as defaults fo
 
 ### Field fallbacks
 
-When `seo_title` / `seo_description` are empty, a page can borrow one of its own fields, per template (`'*'` = any template). The value is turned into plain text and cut at `length` characters (60 for titles).
+When `seo_title` / `seo_description` / `og_image` are empty, a page can borrow one of its own fields, per template (`'*'` = any template). Text values are turned into plain text and cut at `length` characters (60 for titles); image fields use their first image.
 
 ```php
 'rllngr.kirby-visibilizer' => [
@@ -161,13 +161,16 @@ When `seo_title` / `seo_description` are empty, a page can borrow one of its own
             'project' => 'introduction',
             '*'       => ['intro', 'text'], // first non-empty field wins
         ],
+        'image'  => ['project' => 'cover'],
         'title'  => [],
         'length' => 160,
     ],
 ],
 ```
 
-Cascade: SEO field → template field → page title (titles) / site description (descriptions). The live preview and the SEO view show where each value comes from.
+Cascade: SEO field → template field → page title (titles) / site description (descriptions) / site share image, then the page's first image (images).
+
+The shared image is resized to `ogImageWidth` (default `1200`, `null` for the original file) and `og:image:width` / `og:image:height` are written; its `og:image:alt` uses the image's alt text (see below). The live preview and the SEO view show where each value comes from.
 
 ### Image alt texts
 

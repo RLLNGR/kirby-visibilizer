@@ -153,31 +153,75 @@ class Meta
         return $this->description();
     }
 
-    public function ogImage(): string
+    /**
+     * Image partagée et sa provenance :
+     * og_image de la page → champ de repli du template (`fallbacks.image`) → og_image du site → première image de la page.
+     * @return array{file: ?File, source: string, field: ?string}
+     */
+    public function ogImageSource(): array
     {
-        $file = $this->resolveFileField('og_image', 'ogImage');
-        if ($file) return $file->url();
-
-        // Site-level fallback
-        $siteFile = $this->resolveSiteFileField('og_image', 'ogImage');
-        if ($siteFile) return $siteFile->url();
-
-        // Auto: first image attached to the page
-        if ($this->model instanceof Page) {
-            $first = $this->model->images()->first();
-            if ($first) return $first->url();
+        if ($file = $this->resolveFileField('og_image', 'ogImage')) {
+            return ['file' => $file, 'source' => 'custom', 'field' => null];
         }
 
-        return '';
+        foreach ($this->fallbackFields('image') as $name) {
+            $file = $this->model->content()->get($name)->toFile();
+            if ($file && $file->type() === 'image') {
+                return ['file' => $file, 'source' => 'field', 'field' => $name];
+            }
+        }
+
+        if ($file = $this->resolveSiteFileField('og_image', 'ogImage')) {
+            return ['file' => $file, 'source' => $this->model instanceof Site ? 'custom' : 'site', 'field' => null];
+        }
+
+        if ($this->model instanceof Page && $file = $this->model->images()->first()) {
+            return ['file' => $file, 'source' => 'auto', 'field' => null];
+        }
+
+        return ['file' => null, 'source' => 'none', 'field' => null];
+    }
+
+    public function ogImageFile(): ?File
+    {
+        return $this->ogImageSource()['file'];
+    }
+
+    public function ogImage(): string
+    {
+        return $this->imageUrl($this->ogImageFile());
     }
 
     public function ogImageAlt(): string
     {
-        $file = $this->resolveFileField('og_image', 'ogImage');
-        if ($file && $file->alt()->isNotEmpty()) {
-            return $file->alt()->value();
-        }
-        return $this->ogTitle();
+        $file = $this->ogImageFile();
+        return ($file ? Alt::text($file) : '') ?: $this->ogTitle();
+    }
+
+    /** Dimensions de l'image partagée (après redimensionnement), ou null */
+    public function ogImageSize(): ?array
+    {
+        $file = $this->ogImageFile();
+        if (!$file || !$file->isResizable()) return null;
+
+        $image = $this->resized($file);
+        return ['width' => $image->width(), 'height' => $image->height()];
+    }
+
+    /**
+     * URL partagée : redimensionnée à `ogImageWidth` (1200 par défaut) pour ne pas envoyer
+     * un original de plusieurs Mo aux réseaux sociaux. null = fichier original.
+     */
+    protected function imageUrl(?File $file): string
+    {
+        if (!$file) return '';
+        return $file->isResizable() ? $this->resized($file)->url() : $file->url();
+    }
+
+    protected function resized(File $file)
+    {
+        $width = $this->options['ogImageWidth'] ?? 1200;
+        return $width && $file->width() > $width ? $file->resize($width) : $file;
     }
 
     public function ogType(): string
@@ -197,7 +241,7 @@ class Meta
     public function twitterImage(): string
     {
         $file = $this->resolveFileField('twitter_image', 'twitterImage');
-        if ($file) return $file->url();
+        if ($file) return $this->imageUrl($file);
 
         return $this->ogImage();
     }
@@ -255,7 +299,7 @@ class Meta
 
     /**
      * Where each resolved value comes from:
-     * title: custom|default · description: custom|site|none · image: custom|site|auto|none
+     * title: custom|field|default · description: custom|field|site|none · image: custom|field|site|auto|none
      */
     public function sources(): array
     {
@@ -273,27 +317,16 @@ class Meta
             default                                                  => 'none',
         };
 
-        $image = match (true) {
-            $this->resolveFileField('og_image', 'ogImage') !== null     => 'custom',
-            $this->resolveSiteFileField('og_image', 'ogImage') !== null => 'site',
-            (bool) $this->ogImage()                                     => 'auto',
-            default                                                     => 'none',
-        };
+        $image = $this->ogImageSource();
 
         return [
             'title'            => $title,
             'titleField'       => $title === 'field' ? $this->fallback('title')['field'] : null,
             'description'      => $this->model instanceof Site && $description === 'site' ? 'custom' : $description,
             'descriptionField' => $description === 'field' ? $this->fallback('description')['field'] : null,
-            'image'            => $image,
+            'image'            => $image['source'],
+            'imageField'       => $image['field'],
         ];
-    }
-
-    public function ogImageFile(): ?File
-    {
-        return $this->resolveFileField('og_image', 'ogImage')
-            ?? $this->resolveSiteFileField('og_image', 'ogImage')
-            ?? ($this->model instanceof Page ? $this->model->images()->first() : null);
     }
 
     // -------------------------------------------------------------------------
@@ -309,6 +342,7 @@ class Meta
             'og_description' => $this->ogDescription(),
             'og_image'       => $this->ogImage(),
             'og_image_alt'   => $this->ogImageAlt(),
+            'og_image_size'  => $this->ogImageSize(),
             'og_type'        => $this->ogType(),
             'twitter_card'   => $this->twitterCard(),
             'twitter_image'  => $this->twitterImage(),
