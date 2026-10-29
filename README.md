@@ -35,26 +35,26 @@ Add both snippets inside your `<head>` layout:
 <?php snippet('seo/jsonld') ?>
 ```
 
-Add the panel sections to your blueprints:
+Add the panel sections to your page blueprints:
 
 ```yaml
-# site.yml
+# blueprints/pages/article.yml (or any page blueprint)
 sections:
   seo_preview:
     extends: sections/seo-preview
+  seo:
+    extends: sections/seo
+```
+
+Site-wide defaults (home page title, default description and share image, llms.txt description and instructions) are edited in the **Settings** tab of the SEO view (`/panel/seo?tab=settings`) — nothing to add to `site.yml`. They are stored in the site content with the same field names, so templates, KQL and the cascade read them as usual. If you'd rather edit them on the Site page, the sections still work there:
+
+```yaml
+# site.yml (optional)
+sections:
   seo:
     extends: sections/seo
   geo:
     extends: sections/geo
-```
-
-```yaml
-# templates/article.yml (or any page blueprint)
-sections:
-  seo_preview:
-    extends: sections/seo-preview
-  seo:
-    extends: sections/seo
 ```
 
 The `seo-preview` section shows a live preview panel with three tabs (Google SERP, OG/social card, Twitter/X card) and a checklist of SEO issues. It reads field values in real time — changes are reflected before saving.
@@ -71,6 +71,7 @@ The Panel gets an **SEO** entry in its menu (`/panel/seo`), styled like the [mon
 - **Count default values** — on (default): titles and descriptions taken from elsewhere (page title, a template field, the site) are judged on what they produce in `<head>`. Off: anything not filled in the SEO tab is flagged. The choice is remembered in the browser and also applies to the live preview.
 - **Pages** — every page whose blueprint has the SEO fields: meta title and description as rendered in `<head>` (with a `default` / `site` badge when inherited), share image, indexing. Click a row to see its issues (length, duplicates, inherited values, missing image).
 - **Images** — alt text and weight of every image on those pages.
+- **Settings** — site-wide defaults, saved straight into the site content (no draft / publish step), in the Panel's current language; requires the permission to update the site. Below them, what is set in `config.php` (fallbacks, alt templates, separator…) is shown read-only.
 - **Links** — links found in the content (HTML, Markdown, KirbyText, link fields, `page://` / `file://` UUIDs) with the pages they come from. Internal links are resolved by Kirby directly (no HTTP request); external links are checked from the server in small batches and cached for a week. *Recheck all* forces a new check.
 
 ```php

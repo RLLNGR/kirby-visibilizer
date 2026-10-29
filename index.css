@@ -705,6 +705,52 @@
   text-align: center;
 }
 
+/* ── Réglages ───────────────────────────────────── */
+.k-vis-settings {
+  padding-top: 1.5rem;
+  font-family: var(--font-sans);
+}
+.k-vis-settings-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 2px solid var(--m-bg);
+  font-family: var(--m-sans);
+  font-size: 0.8rem;
+}
+.k-vis-button-primary:not(:disabled) {
+  background: var(--m-bar-bg);
+  color: var(--m-bar-text) !important;
+}
+.k-vis-button-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--m-bar-bg) 85%, var(--m-bg));
+}
+.k-vis-caption {
+  margin: 0.5rem 0 0.75rem;
+  color: var(--m-muted);
+  font-size: 0.88rem;
+  font-weight: 400;
+  text-transform: lowercase;
+}
+.k-vis-config {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 1.5rem;
+  font-size: 0.82rem;
+}
+.k-vis-config dt {
+  color: var(--m-muted);
+  font-family: var(--m-mono);
+  font-size: 0.75rem;
+}
+.k-vis-config dd {
+  overflow-wrap: anywhere;
+}
+
 /* ── Tableau ────────────────────────────────────── */
 .k-vis-table {
   display: grid;

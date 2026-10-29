@@ -441,6 +441,7 @@ const SeoView = {
     pages: Array,
     images: Array,
     links: Array,
+    settings: Object,
   },
   data() {
     return {
@@ -451,6 +452,8 @@ const SeoView = {
       results: {},
       checking: null,
       fallbacks: readPref(),
+      form: { ...this.settings.values },
+      saving: false,
     }
   },
   computed: {
@@ -489,6 +492,36 @@ const SeoView = {
     },
     tabs() {
       return TABS.map(key => ({ key, count: this.source(key).length, errors: this.source(key).filter(r => this.levelOf(r) === 'error').length }))
+        .concat([{ key: 'settings', count: null }])
+    },
+    // Champs du formulaire de réglages, branchés sur l'API du plugin (pas sur /site/fields, absents du blueprint)
+    settingsFields() {
+      const fields = {}
+      for (const [name, field] of Object.entries(this.settings.fields)) {
+        fields[name] = {
+          ...field,
+          disabled: field.disabled || !this.settings.editable,
+          endpoints: { field: 'rllngr/visibilizer-settings/fields/' + name, section: null, model: 'site' },
+        }
+      }
+      return fields
+    },
+    settingsChanged() {
+      return JSON.stringify(this.form) !== JSON.stringify(this.settings.values)
+    },
+    configRows() {
+      const c = this.settings.config
+      const list = obj => Object.entries(obj || {}).map(([k, v]) => k + ' → ' + [].concat(v).join(', ')).join(' · ')
+      return [
+        ['mode', c.mode + (c.siteUrl ? ' · ' + c.siteUrl : '')],
+        ['titleSeparator', '« ' + c.titleSeparator + ' »'],
+        ['ogImageWidth', c.ogImageWidth ? c.ogImageWidth + ' px' : this.$t('visibilizer.config.original')],
+        ['fallbacks.title', list(c.fallbacks.title)],
+        ['fallbacks.description', list(c.fallbacks.description)],
+        ['fallbacks.image', list(c.fallbacks.image)],
+        ['alt', list(c.alt)],
+        ['llms.sections', String(c.llmsSections)],
+      ].map(([key, value]) => ({ key, value: value || this.$t('visibilizer.none') }))
     },
     rows() {
       const q = this.query.trim().toLowerCase()
@@ -604,6 +637,23 @@ const SeoView = {
         },
       })
     },
+    async saveSettings() {
+      this.saving = true
+      try {
+        await this.$api.post('rllngr/visibilizer-settings', { values: this.form })
+        this.$panel.notification.success(this.$t('visibilizer.settings.saved'))
+        // Les valeurs du site changent la cascade : on recalcule pages et images
+        await this.$panel.view.reload()
+        this.form = { ...this.settings.values }
+      } catch (e) {
+        this.$panel.notification.error(e)
+      } finally {
+        this.saving = false
+      }
+    },
+    resetSettings() {
+      this.form = { ...this.settings.values }
+    },
     async recheck() {
       // Les liens internes sont recalculés côté serveur au rechargement de la vue
       await this.$panel.view.reload()
@@ -625,7 +675,7 @@ const SeoView = {
               @click="select(t.key)"
             >
               {{ $t('visibilizer.tab.' + t.key) }}
-              <span class="k-vis-tab-count">{{ t.count }}</span>
+              <span v-if="t.count !== null" class="k-vis-tab-count">{{ t.count }}</span>
             </button>
           </nav>
         </header>
@@ -654,7 +704,7 @@ const SeoView = {
           </button>
         </div>
 
-        <div class="k-vis-mode">
+        <div v-if="current !== 'settings'" class="k-vis-mode">
           <button type="button" class="k-vis-switch" role="switch" :aria-checked="fallbacks ? 'true' : 'false'" @click="toggleFallbacks">
             <span class="k-vis-switch-track"><span class="k-vis-switch-thumb"></span></span>
             {{ $t('visibilizer.fallbacks') }}
@@ -662,7 +712,33 @@ const SeoView = {
           <span class="k-vis-muted">{{ $t(fallbacks ? 'visibilizer.fallbacks.on' : 'visibilizer.fallbacks.off') }}</span>
         </div>
 
-        <section class="k-vis-block">
+        <template v-if="current === 'settings'">
+          <section class="k-vis-block k-vis-settings">
+            <k-fieldset :fields="settingsFields" :value="form" :novalidate="true" @input="form = $event" />
+            <div class="k-vis-settings-bar">
+              <span v-if="!settings.editable" class="k-vis-muted">{{ $t('visibilizer.settings.readonly') }}</span>
+              <span v-else-if="settingsChanged" class="k-vis-muted">{{ $t('visibilizer.settings.unsaved') }}</span>
+              <span v-else class="k-vis-muted">{{ $t('visibilizer.settings.stored') }}</span>
+              <span class="k-vis-tools">
+                <button v-if="settingsChanged" type="button" class="k-vis-button" @click="resetSettings">{{ $t('visibilizer.settings.reset') }}</button>
+                <button type="button" class="k-vis-button k-vis-button-primary" :disabled="!settingsChanged || saving || !settings.editable" @click="saveSettings">
+                  {{ $t(saving ? 'visibilizer.settings.saving' : 'visibilizer.settings.save') }}
+                </button>
+              </span>
+            </div>
+          </section>
+          <section class="k-vis-block">
+            <h2 class="k-vis-caption">{{ $t('visibilizer.config') }}</h2>
+            <dl class="k-vis-config">
+              <template v-for="row in configRows">
+                <dt :key="row.key + ':k'">{{ row.key }}</dt>
+                <dd :key="row.key + ':v'">{{ row.value }}</dd>
+              </template>
+            </dl>
+          </section>
+        </template>
+
+        <section v-else class="k-vis-block">
           <div class="k-vis-toolbar">
             <nav class="k-vis-filters">
               <button

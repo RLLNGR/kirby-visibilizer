@@ -10,6 +10,7 @@ use Rllngr\KirbyVisibilizer\LinkChecker;
 use Rllngr\KirbyVisibilizer\LlmGenerator;
 use Rllngr\KirbyVisibilizer\Meta;
 use Rllngr\KirbyVisibilizer\Robots;
+use Rllngr\KirbyVisibilizer\Settings;
 use Rllngr\KirbyVisibilizer\Sitemap;
 
 load([
@@ -19,6 +20,7 @@ load([
     'Rllngr\\KirbyVisibilizer\\LlmGenerator' => __DIR__ . '/src/LlmGenerator.php',
     'Rllngr\\KirbyVisibilizer\\Audit'        => __DIR__ . '/src/Audit.php',
     'Rllngr\\KirbyVisibilizer\\Alt'          => __DIR__ . '/src/Alt.php',
+    'Rllngr\\KirbyVisibilizer\\Settings'     => __DIR__ . '/src/Settings.php',
     'Rllngr\\KirbyVisibilizer\\LinkChecker'  => __DIR__ . '/src/LinkChecker.php',
 ]);
 
@@ -53,7 +55,8 @@ App::plugin('rllngr/kirby-visibilizer', [
                             'component' => 'k-visibilizer-seo-view',
                             'title'     => t('visibilizer.seo'),
                             'props'     => [
-                                'tab'    => in_array($tab, ['pages', 'images', 'links'], true) ? $tab : 'pages',
+                                'tab'      => in_array($tab, ['pages', 'images', 'links', 'settings'], true) ? $tab : 'pages',
+                                'settings' => Settings::props(kirby()),
                                 'pages'  => $audit->pageReport(),
                                 'images' => $audit->imageReport(),
                                 'links'  => $audit->linkReport(),
@@ -79,6 +82,34 @@ App::plugin('rllngr/kirby-visibilizer', [
 
     'api' => [
         'routes' => [
+            [
+                // Enregistre les réglages généraux dans le contenu du site
+                'pattern' => 'rllngr/visibilizer-settings',
+                'method'  => 'POST',
+                'action'  => function () {
+                    if (!visibilizerPanelAccess()) {
+                        throw new PermissionException(t('visibilizer.forbidden'));
+                    }
+                    return Settings::save(kirby(), (array) get('values', []));
+                },
+            ],
+            [
+                // API des champs du formulaire de réglages (sélecteur et envoi d'images du champ fichiers),
+                // comme /site/fields/… mais pour des champs qui ne sont pas dans le blueprint du site
+                'pattern' => 'rllngr/visibilizer-settings/fields/(:any)/(:all?)',
+                'method'  => 'ALL',
+                'action'  => function (string $name, string|null $path = null) {
+                    if (!visibilizerPanelAccess()) {
+                        throw new PermissionException(t('visibilizer.forbidden'));
+                    }
+                    $field = Settings::form(kirby())->field($name);
+                    $api   = $this->clone([
+                        'data'   => [...$this->data(), 'field' => $field],
+                        'routes' => $field->api(),
+                    ]);
+                    return $api->call($path, $this->requestMethod(), $this->requestData());
+                },
+            ],
             [
                 // Écrit le texte généré dans les champs alt vides des images auditées
                 'pattern' => 'rllngr/visibilizer-audit/alts',
