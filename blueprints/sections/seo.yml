@@ -1,0 +1,122 @@
+type: fields
+label:
+  en: SEO
+  fr: SEO
+
+fields:
+
+  seo_title:
+    type: text
+    label:
+      en: SEO Title
+      fr: Titre SEO
+    counter: true
+    maxlength: 60
+    help:
+      en: "Overrides the page title in search results. Ideal: 40–60 characters."
+      fr: "Remplace le titre de la page dans les résultats. Idéal : 40–60 caractères."
+    placeholder:
+      en: Leave empty to use the page title
+      fr: Laisser vide pour utiliser le titre de la page
+
+  seo_description:
+    type: textarea
+    label:
+      en: Meta Description
+      fr: Méta description
+    buttons: false
+    counter: true
+    maxlength: 160
+    size: small
+    help:
+      en: "Appears in search results below the title. Ideal: 120–160 characters."
+      fr: "Apparaît dans les résultats sous le titre. Idéal : 120–160 caractères."
+
+  seo_robots:
+    type: select
+    label:
+      en: Indexing (robots)
+      fr: Indexation (robots)
+    default: ""
+    options:
+      - text:
+          en: "Default — index, follow"
+          fr: "Par défaut — index, follow"
+        value: ""
+      - text: noindex, follow
+        value: "noindex, follow"
+      - text: noindex, nofollow
+        value: "noindex, nofollow"
+      - text: index, nofollow
+        value: "index, nofollow"
+
+  seo_canonical:
+    type: url
+    label:
+      en: Canonical URL
+      fr: URL canonique
+    help:
+      en: Override only if this page's content also lives at another URL.
+      fr: À renseigner uniquement si ce contenu existe aussi à une autre URL.
+
+  og_headline:
+    type: headline
+    label:
+      en: Social Media
+      fr: Réseaux sociaux
+
+  og_image:
+    type: files
+    label:
+      en: Social Image (OG)
+      fr: Image sociale (OG)
+    max: 1
+    help:
+      en: "Recommended: 1200×630 px. Used by Google, Facebook, LinkedIn, Discord, X…"
+      fr: "Recommandé : 1200×630 px. Utilisé par Google, Facebook, LinkedIn, Discord, X…"
+
+  og_title:
+    type: text
+    label:
+      en: OG Title
+      fr: Titre OG
+    help:
+      en: Override for social media. Inherits SEO title if empty.
+      fr: Surcharge pour les réseaux sociaux. Hérite du titre SEO si vide.
+
+  og_description:
+    type: textarea
+    label:
+      en: OG Description
+      fr: Description OG
+    buttons: false
+    size: small
+    help:
+      en: Override for social media. Inherits meta description if empty.
+      fr: Surcharge pour les réseaux sociaux. Hérite de la méta description si vide.
+
+  twitter_card:
+    type: select
+    label:
+      en: Twitter / X Card
+      fr: Carte Twitter / X
+    default: summary_large_image
+    options:
+      - text:
+          en: Large image (recommended)
+          fr: Grande image (recommandé)
+        value: summary_large_image
+      - text:
+          en: Small summary
+          fr: Résumé compact
+        value: summary
+
+  twitter_image:
+    type: files
+    label:
+      en: Twitter Image
+      fr: Image Twitter / X
+    max: 1
+    help:
+      en: Optional. Falls back to OG image if empty.
+      fr: Optionnel. Hérite de l'image OG si vide.

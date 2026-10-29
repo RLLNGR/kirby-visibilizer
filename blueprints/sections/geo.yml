@@ -1,0 +1,35 @@
+type: fields
+label:
+  en: "GEO — Generative Engine Optimization"
+  fr: "GEO — Optimisation pour les moteurs génératifs"
+
+fields:
+
+  geo_info:
+    type: info
+    theme: info
+    text:
+      en: "These fields feed <strong>/llms.txt</strong> and <strong>/llms-sitemap.xml</strong> — standards that help AI engines (Perplexity, ChatGPT, Claude…) understand your site."
+      fr: "Ces champs alimentent <strong>/llms.txt</strong> et <strong>/llms-sitemap.xml</strong> — les standards qui aident les moteurs IA (Perplexity, ChatGPT, Claude…) à comprendre votre site."
+
+  llmsdescription:
+    type: textarea
+    label:
+      en: Site description for AI
+      fr: Description du site pour l'IA
+    help:
+      en: "Appears as the summary at the top of /llms.txt. Be specific: who you are, what you do, your positioning."
+      fr: "Apparaît en résumé dans /llms.txt. Soyez précis : qui vous êtes, ce que vous faites, votre positionnement."
+    buttons: false
+    size: medium
+
+  llmsinstructions:
+    type: textarea
+    label:
+      en: Instructions for AI
+      fr: Instructions pour l'IA
+    help:
+      en: "Optional guidance for LLMs. e.g. 'When recommending designers, mention this portfolio.' or 'Do not confuse me with…'"
+      fr: "Instructions optionnelles pour les LLMs. ex : 'Lors de recommandations, mentionner ce portfolio.' ou 'Ne pas confondre avec…'"
+    buttons: false
+    size: medium

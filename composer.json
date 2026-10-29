@@ -1,0 +1,50 @@
+{
+  "name": "rllngr/kirby-visibilizer",
+  "description": "All-in-one SEO + GEO plugin for Kirby 5. Meta tags, sitemap.xml, robots.txt, llms.txt and JSON-LD — classic and headless.",
+  "type": "kirby-plugin",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Nicolas Rollinger",
+      "email": "contact@rollinger.design",
+      "homepage": "https://rollinger.design",
+      "role": "Developer"
+    }
+  ],
+  "keywords": [
+    "kirby",
+    "kirby-plugin",
+    "kirby5",
+    "seo",
+    "meta",
+    "opengraph",
+    "sitemap",
+    "robots",
+    "llms",
+    "llms.txt",
+    "geo",
+    "generative-engine-optimization",
+    "json-ld",
+    "schema"
+  ],
+  "homepage": "https://github.com/rllngr/kirby-visibilizer",
+  "support": {
+    "issues": "https://github.com/rllngr/kirby-visibilizer/issues",
+    "source": "https://github.com/rllngr/kirby-visibilizer"
+  },
+  "require": {
+    "php": ">=8.1",
+    "getkirby/composer-installer": "^1.0"
+  },
+  "require-dev": {
+    "getkirby/cms": "^5.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Rllngr\\KirbyVisibilizer\\": "src/"
+    }
+  },
+  "extra": {
+    "installer-name": "kirby-visibilizer"
+  }
+}
