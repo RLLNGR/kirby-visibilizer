@@ -40,6 +40,8 @@ Add the panel sections to your blueprints:
 ```yaml
 # site.yml
 sections:
+  seo_preview:
+    extends: sections/seo-preview
   seo:
     extends: sections/seo
   geo:
@@ -49,9 +51,13 @@ sections:
 ```yaml
 # templates/article.yml (or any page blueprint)
 sections:
+  seo_preview:
+    extends: sections/seo-preview
   seo:
     extends: sections/seo
 ```
+
+The `seo-preview` section shows a live preview panel with three tabs (Google SERP, OG/social card, Twitter/X card) and a checklist of SEO issues. It reads field values in real time — changes are reflected before saving.
 
 That's it. `sitemap.xml`, `robots.txt`, `llms.txt` and `llms-full.txt` are served automatically.
 

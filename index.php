@@ -15,6 +15,41 @@ load([
 
 App::plugin('rllngr/kirby-visibilizer', [
 
+    'api' => [
+        'routes' => [
+            [
+                'pattern' => 'rllngr/visibilizer/(:any)',
+                'method'  => 'GET',
+                'action'  => function (string $panelId) {
+                    $kirby   = kirby();
+                    $site    = $kirby->site();
+                    $pageId  = str_replace('+', '/', $panelId);
+                    $page    = $kirby->page($pageId);
+
+                    $separator = $kirby->option('rllngr.kirby-visibilizer.titleSeparator', ' — ');
+
+                    if (!$page) {
+                        return [
+                            'siteTitle' => $site->title()->value(),
+                            'pageTitle' => $site->title()->value(),
+                            'pageUrl'   => $site->url(),
+                            'siteUrl'   => $site->url(),
+                            'separator' => $separator,
+                        ];
+                    }
+
+                    return [
+                        'siteTitle' => $site->title()->value(),
+                        'pageTitle' => $page->title()->value(),
+                        'pageUrl'   => $page->url(),
+                        'siteUrl'   => $site->url(),
+                        'separator' => $separator,
+                    ];
+                },
+            ],
+        ],
+    ],
+
     'options' => [
         // 'classic' — Kirby serves all files directly
         // 'headless' — exposes JSON endpoints for the frontend
@@ -68,9 +103,15 @@ App::plugin('rllngr/kirby-visibilizer', [
         ],
     ],
 
+    'panel' => [
+        'js'  => __DIR__ . '/panel/index.js',
+        'css' => __DIR__ . '/panel/index.css',
+    ],
+
     'blueprints' => [
-        'sections/seo' => __DIR__ . '/blueprints/sections/seo.yml',
-        'sections/geo' => __DIR__ . '/blueprints/sections/geo.yml',
+        'sections/seo'         => __DIR__ . '/blueprints/sections/seo.yml',
+        'sections/seo-preview' => __DIR__ . '/blueprints/sections/seo-preview.yml',
+        'sections/geo'         => __DIR__ . '/blueprints/sections/geo.yml',
     ],
 
     'snippets' => [
