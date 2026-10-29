@@ -6,6 +6,7 @@ use Kirby\Cms\App;
 use Kirby\Cms\File;
 use Kirby\Cms\Page;
 use Kirby\Cms\Site;
+use Kirby\Toolkit\Str;
 
 class Meta
 {
@@ -35,7 +36,7 @@ class Meta
             return $this->homeTitle();
         }
 
-        $pageTitle = $this->field('seo_title', 'metaTemplate') ?: $this->model->title()->value();
+        $pageTitle = $this->pageTitle();
 
         if ($pageTitle === $siteTitle) {
             return $siteTitle;
@@ -57,6 +58,52 @@ class Meta
         return $this->siteField('seo_title', 'metaTemplate') ?: $this->kirby->site()->title()->value();
     }
 
+    /**
+     * Page: seo_title → champ de repli du template → titre de la page (sans le nom du site).
+     */
+    protected function pageTitle(): string
+    {
+        return $this->field('seo_title', 'metaTemplate')
+            ?: $this->fallback('title')['value']
+            ?: $this->model->title()->value();
+    }
+
+    /**
+     * Champ de repli configuré pour le template de la page (`fallbacks.title` / `fallbacks.description`),
+     * ramené à du texte brut : ['field' => nom du champ ou null, 'value' => texte].
+     */
+    public function fallback(string $type): array
+    {
+        $length = $type === 'title' ? 60 : ($this->options['fallbacks']['length'] ?? 160);
+
+        foreach ($this->fallbackFields($type) as $name) {
+            $field = $this->model->content()->get($name);
+            if ($field->isEmpty()) continue;
+
+            $text = Str::excerpt(static::plainText($field->kirbytext()->value()), $length);
+            if ($text !== '') return ['field' => $name, 'value' => $text];
+        }
+
+        return ['field' => null, 'value' => ''];
+    }
+
+    /** HTML → texte : une espace entre les blocs, entités décodées (&nbsp; compris) */
+    public static function plainText(string $html): string
+    {
+        $html = preg_replace('#<br\s*/?>|</(p|li|h[1-6]|div|blockquote|figcaption|td)>#i', ' $0', $html);
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        return trim(preg_replace('/[\s\x{00A0}]+/u', ' ', $text));
+    }
+
+    /** Noms des champs de repli pour le template de la page, dans l'ordre */
+    public function fallbackFields(string $type): array
+    {
+        if (!$this->model instanceof Page) return [];
+
+        $map = $this->options['fallbacks'][$type] ?? [];
+        return (array) ($map[$this->model->intendedTemplate()->name()] ?? $map['*'] ?? []);
+    }
+
     protected function isHome(): bool
     {
         return $this->model instanceof Site || $this->model->isHomePage();
@@ -68,7 +115,8 @@ class Meta
 
     public function description(): string
     {
-        $value = $this->field('seo_description', 'metaDescription');
+        $value = $this->field('seo_description', 'metaDescription')
+            ?: $this->fallback('description')['value'];
 
         if (!$value && $this->model instanceof Page) {
             $value = $this->siteField('seo_description', 'metaDescription');
@@ -94,7 +142,7 @@ class Meta
             return $this->homeTitle();
         }
 
-        return $this->field('seo_title', 'metaTemplate') ?: $this->model->title()->value();
+        return $this->pageTitle();
     }
 
     public function ogDescription(): string
@@ -199,6 +247,53 @@ class Meta
         }
 
         return $result;
+    }
+
+    // -------------------------------------------------------------------------
+    // Sources (used by the panel audit)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Where each resolved value comes from:
+     * title: custom|default · description: custom|site|none · image: custom|site|auto|none
+     */
+    public function sources(): array
+    {
+        $title = match (true) {
+            $this->field('seo_title', 'metaTemplate') !== ''                           => 'custom',
+            $this->isHome() && $this->siteField('seo_title', 'metaTemplate') !== ''    => 'custom',
+            !$this->isHome() && $this->fallback('title')['field'] !== null             => 'field',
+            default                                                                    => 'default',
+        };
+
+        $description = match (true) {
+            (bool) $this->field('seo_description', 'metaDescription') => 'custom',
+            $this->fallback('description')['field'] !== null         => 'field',
+            (bool) $this->description()                              => 'site',
+            default                                                  => 'none',
+        };
+
+        $image = match (true) {
+            $this->resolveFileField('og_image', 'ogImage') !== null     => 'custom',
+            $this->resolveSiteFileField('og_image', 'ogImage') !== null => 'site',
+            (bool) $this->ogImage()                                     => 'auto',
+            default                                                     => 'none',
+        };
+
+        return [
+            'title'            => $title,
+            'titleField'       => $title === 'field' ? $this->fallback('title')['field'] : null,
+            'description'      => $this->model instanceof Site && $description === 'site' ? 'custom' : $description,
+            'descriptionField' => $description === 'field' ? $this->fallback('description')['field'] : null,
+            'image'            => $image,
+        ];
+    }
+
+    public function ogImageFile(): ?File
+    {
+        return $this->resolveFileField('og_image', 'ogImage')
+            ?? $this->resolveSiteFileField('og_image', 'ogImage')
+            ?? ($this->model instanceof Page ? $this->model->images()->first() : null);
     }
 
     // -------------------------------------------------------------------------

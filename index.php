@@ -1,7 +1,10 @@
 <?php
 
 use Kirby\Cms\App;
+use Kirby\Exception\PermissionException;
 use Kirby\Toolkit\I18n;
+use Rllngr\KirbyVisibilizer\Audit;
+use Rllngr\KirbyVisibilizer\LinkChecker;
 use Rllngr\KirbyVisibilizer\LlmGenerator;
 use Rllngr\KirbyVisibilizer\Meta;
 use Rllngr\KirbyVisibilizer\Robots;
@@ -12,12 +15,76 @@ load([
     'Rllngr\\KirbyVisibilizer\\Sitemap'      => __DIR__ . '/src/Sitemap.php',
     'Rllngr\\KirbyVisibilizer\\Robots'       => __DIR__ . '/src/Robots.php',
     'Rllngr\\KirbyVisibilizer\\LlmGenerator' => __DIR__ . '/src/LlmGenerator.php',
+    'Rllngr\\KirbyVisibilizer\\Audit'        => __DIR__ . '/src/Audit.php',
+    'Rllngr\\KirbyVisibilizer\\LinkChecker'  => __DIR__ . '/src/LinkChecker.php',
 ]);
+
+/** Vue SEO du Panel : `panel.access` = true (tous), false (personne) ou une liste de rôles */
+function visibilizerPanelAccess(): bool
+{
+    $user   = kirby()->user();
+    $option = option('rllngr.kirby-visibilizer.panel.access', true);
+    if (!$user || $option === false) return false;
+    return $option === true || in_array($user->role()->name(), (array) $option, true);
+}
 
 App::plugin('rllngr/kirby-visibilizer', [
 
+    // Vue SEO dans le Panel
+    'areas' => [
+        'visibilizer' => fn () => [
+            'label' => t('visibilizer.seo'),
+            'icon'  => 'search',
+            'menu'  => visibilizerPanelAccess(),
+            'link'  => 'seo',
+            'views' => [
+                [
+                    'pattern' => 'seo',
+                    'action'  => function () {
+                        if (!visibilizerPanelAccess()) {
+                            throw new PermissionException(t('visibilizer.forbidden'));
+                        }
+                        $audit = new Audit(kirby());
+                        $tab   = get('tab', 'pages');
+                        return [
+                            'component' => 'k-visibilizer-seo-view',
+                            'title'     => t('visibilizer.seo'),
+                            'props'     => [
+                                'tab'    => in_array($tab, ['pages', 'images', 'links'], true) ? $tab : 'pages',
+                                'pages'  => $audit->pageReport(),
+                                'images' => $audit->imageReport(),
+                                'links'  => $audit->linkReport(),
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ],
+    ],
+
+    'translations' => [
+        'fr' => require __DIR__ . '/translations/fr.php',
+        'en' => require __DIR__ . '/translations/en.php',
+    ],
+
     'api' => [
         'routes' => [
+            [
+                // Vérifie un lot de liens externes (la vue les envoie par petits lots)
+                'pattern' => 'rllngr/visibilizer-audit/links',
+                'method'  => 'POST',
+                'action'  => function () {
+                    if (!visibilizerPanelAccess()) {
+                        throw new PermissionException(t('visibilizer.forbidden'));
+                    }
+                    // Seulement des liens réellement présents dans le contenu (pas de sonde arbitraire)
+                    $known = array_column(array_filter((new Audit(kirby()))->linkReport(), fn ($l) => !$l['internal']), 'href');
+                    $hrefs = array_slice(array_values(array_intersect((array) get('hrefs', []), $known)), 0, 20);
+                    $checker = new LinkChecker(kirby());
+                    if (get('force')) $checker->forget($hrefs);
+                    return $checker->check($hrefs);
+                },
+            ],
             [
                 'pattern' => 'rllngr/visibilizer/(:any)',
                 'method'  => 'GET',
@@ -42,8 +109,12 @@ App::plugin('rllngr/kirby-visibilizer', [
                             'homeTitle' => $site->title()->value(),
                             'siteDescription' => '',
                             'siteOgImage'     => false,
+                            'siteOgImageUrl'  => null,
+                            'autoImageUrl'    => null,
                         ];
                     }
+
+                    $meta = new Meta($kirby, $page);
 
                     return [
                         'siteTitle' => $site->title()->value(),
@@ -55,6 +126,15 @@ App::plugin('rllngr/kirby-visibilizer', [
                         'homeTitle' => $homeTitle,
                         'siteDescription' => $site->content()->get('seo_description')->or($site->description())->value() ?? '',
                         'siteOgImage'     => $site->content()->get('og_image')->toFile() !== null,
+                        // Images de repli de l'aperçu (même ordre que Meta::ogImage)
+                        'siteOgImageUrl'  => $site->content()->get('og_image')->toFile()?->resize(1200)->url(),
+                        'autoImageUrl'    => $page->images()->first()?->resize(1200)->url(),
+                        // Champs de repli lus en direct par l'aperçu
+                        'fallbacks'       => [
+                            'title'       => $page->isHomePage() ? [] : $meta->fallbackFields('title'),
+                            'description' => $meta->fallbackFields('description'),
+                            'length'      => $kirby->option('rllngr.kirby-visibilizer.fallbacks.length', 160),
+                        ],
                     ];
                 },
             ],
@@ -72,6 +152,14 @@ App::plugin('rllngr/kirby-visibilizer', [
 
         // Separator between page title and site name
         'titleSeparator' => ' — ',
+
+        // Page fields used when seo_title / seo_description are empty, per template ('*' = any):
+        // 'description' => ['project' => 'introduction', '*' => ['intro', 'text']]
+        'fallbacks' => [
+            'title'       => [],
+            'description' => [],
+            'length'      => 160,
+        ],
 
         // sitemap.xml (classic mode)
         'sitemap' => [
@@ -105,6 +193,16 @@ App::plugin('rllngr/kirby-visibilizer', [
             'fields' => [
                 'description'  => 'llmsdescription',
                 'instructions' => 'llmsinstructions',
+            ],
+        ],
+
+        // Vue SEO du Panel
+        'panel' => [
+            'access'   => true, // false, or a list of roles: ['admin', 'editor']
+            'altField' => 'alt',
+            'exclude'  => [
+                'templates' => [],
+                'pages'     => [],
             ],
         ],
 

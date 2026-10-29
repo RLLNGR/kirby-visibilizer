@@ -63,6 +63,38 @@ That's it. `sitemap.xml`, `robots.txt`, `llms.txt` and `llms-full.txt` are serve
 
 ---
 
+## Panel view — SEO
+
+The Panel gets an **SEO** entry in its menu (`/panel/seo`), styled like the [moniter](https://github.com/rllngr/kirby-moniter) Audience view (cream, ink bars, coloured cards; follows the Panel's light / dark theme).
+
+- **Cards** — a score for titles, descriptions, alt texts and links, with optimal / acceptable / to-fix counts. Clicking a card opens the matching tab, filtered on what needs fixing.
+- **Count default values** — on (default): titles and descriptions taken from elsewhere (page title, a template field, the site) are judged on what they produce in `<head>`. Off: anything not filled in the SEO tab is flagged. The choice is remembered in the browser and also applies to the live preview.
+- **Pages** — every page whose blueprint has the SEO fields: meta title and description as rendered in `<head>` (with a `default` / `site` badge when inherited), share image, indexing. Click a row to see its issues (length, duplicates, inherited values, missing image).
+- **Images** — alt text and weight of every image on those pages.
+- **Links** — links found in the content (HTML, Markdown, KirbyText, link fields, `page://` / `file://` UUIDs) with the pages they come from. Internal links are resolved by Kirby directly (no HTTP request); external links are checked from the server in small batches and cached for a week. *Recheck all* forces a new check.
+
+```php
+'rllngr.kirby-visibilizer' => [
+    'panel' => [
+        'access'   => true,           // false to hide it, or a list of roles: ['admin', 'editor']
+        'altField' => 'alt',          // file field holding the alt text
+        'exclude'  => [
+            'templates' => [],
+            'pages'     => [],
+        ],
+    ],
+],
+```
+
+Labels in French and English. The Panel code lives in `src/panel.js` (ordinary `template` strings); `index.js` is generated from it with precompiled render functions, so it also works with `'panel' => ['vue' => ['compiler' => false]]`:
+
+```bash
+npm install
+npm run build   # scripts/build-panel.mjs → index.js, commit both
+```
+
+---
+
 ## Configuration
 
 All options go in `config/config.php` under the `rllngr.kirby-visibilizer` key.
@@ -117,6 +149,25 @@ The plugin reads the following fields from your content files. All are optional 
 | `llmsinstructions` | textarea | `/llms.txt` AI instructions |
 
 Site-level fields (in `site.yml`) follow the same names and serve as defaults for all pages.
+
+### Field fallbacks
+
+When `seo_title` / `seo_description` are empty, a page can borrow one of its own fields, per template (`'*'` = any template). The value is turned into plain text and cut at `length` characters (60 for titles).
+
+```php
+'rllngr.kirby-visibilizer' => [
+    'fallbacks' => [
+        'description' => [
+            'project' => 'introduction',
+            '*'       => ['intro', 'text'], // first non-empty field wins
+        ],
+        'title'  => [],
+        'length' => 160,
+    ],
+],
+```
+
+Cascade: SEO field → template field → page title (titles) / site description (descriptions). The live preview and the SEO view show where each value comes from.
 
 ---
 

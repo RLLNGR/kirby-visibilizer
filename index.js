@@ -1,333 +1,509 @@
-panel.plugin('rllngr/kirby-visibilizer', {
-  sections: {
-    'seo-preview': {
+// GÉNÉRÉ par scripts/build-panel.mjs depuis src/panel.js — ne pas modifier ici, puis : npm run build
+const worst = levels => (levels.includes('error') ? 'error' : levels.includes('warn') ? 'warn' : 'ok')
+const STORE = 'visibilizer.fallbacks'
 
-      // -----------------------------------------------------------------------
-      // Props (from blueprint YAML)
-      // -----------------------------------------------------------------------
+// Préférence gardée dans le navigateur (peut être indisponible : navigation privée, etc.)
+const readPref = () => {
+  try {
+    return window.localStorage.getItem(STORE) !== '0'
+  } catch (e) {
+    return true
+  }
+}
 
-      props: {
-        label:  { type: [String, Object], default: 'SEO Preview' },
-        parent: String,
+// Section « Aperçu SEO » des pages (aperçu Google / réseaux sociaux + contrôles), valeurs lues en direct.
+const SeoPreview = {
+
+  // -----------------------------------------------------------------------
+  // Props (from blueprint YAML)
+  // -----------------------------------------------------------------------
+
+  props: {
+    label:  { type: [String, Object], default: 'SEO Preview' },
+    parent: String,
+  },
+
+  // -----------------------------------------------------------------------
+  // Local state
+  // -----------------------------------------------------------------------
+
+  data() {
+    return {
+      tab: 'google',
+      ctx: {
+        siteTitle: '',
+        pageTitle: '',
+        pageUrl:   '',
+        siteUrl:   '',
+        separator: ' — ',
+        isHome:    false,
+        homeTitle: '',
+        siteDescription: '',
+        siteOgImage: false,
+        siteOgImageUrl: null,
+        autoImageUrl: null,
       },
+    };
+  },
 
-      // -----------------------------------------------------------------------
-      // Local state
-      // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Computed
+  // -----------------------------------------------------------------------
 
-      data() {
-        return {
-          tab: 'google',
-          ctx: {
-            siteTitle: '',
-            pageTitle: '',
-            pageUrl:   '',
-            siteUrl:   '',
-            separator: ' — ',
-            isHome:    false,
-            homeTitle: '',
-            siteDescription: '',
-            siteOgImage: false,
-          },
-        };
-      },
+  computed: {
 
-      // -----------------------------------------------------------------------
-      // Computed
-      // -----------------------------------------------------------------------
+    // Live field values (includes unsaved edits)
+    values() {
+      try {
+        // Kirby 5
+        if (this.$panel?.content?.version) {
+          return this.$panel.content.version('changes') || {};
+        }
+        // Kirby 4
+        const id    = this.$store.state.content?.current;
+        const model = this.$store.state.content?.models?.[id];
+        return { ...model?.originals, ...model?.changes };
+      } catch {
+        return {};
+      }
+    },
 
-      computed: {
+    // Repli lu en direct dans les champs de la page (fallbacks.title / fallbacks.description)
+    fallbackTitle() {
+      return this.fallbackText('title');
+    },
 
-        // Live field values (includes unsaved edits)
-        values() {
-          try {
-            // Kirby 5
-            if (this.$panel?.content?.version) {
-              return this.$panel.content.version('changes') || {};
-            }
-            // Kirby 4
-            const id    = this.$store.state.content?.current;
-            const model = this.$store.state.content?.models?.[id];
-            return { ...model?.originals, ...model?.changes };
-          } catch {
-            return {};
-          }
-        },
+    fallbackDescription() {
+      return this.fallbackText('description');
+    },
 
-        seoTitle() {
-          if (this.ctx.isHome) return this.values.seo_title || this.ctx.homeTitle || '';
-          return this.values.seo_title || this.ctx.pageTitle || '';
-        },
+    titleSource() {
+      if (this.values.seo_title) return 'custom';
+      if (this.ctx.isHome) return this.ctx.homeTitle !== this.ctx.siteTitle ? 'custom' : 'default';
+      return this.fallbackTitle ? 'field' : 'default';
+    },
 
-        fullTitle() {
-          const t = this.seoTitle;
-          const s = this.ctx.siteTitle;
-          if (this.ctx.isHome) return t || s;
-          if (!t || t === s) return s;
-          return `${t}${this.ctx.separator}${s}`;
-        },
+    descSource() {
+      if (this.values.seo_description) return 'custom';
+      if (this.fallbackDescription) return 'field';
+      return this.ctx.siteDescription ? 'site' : 'none';
+    },
 
-        seoDescription() {
-          return this.values.seo_description || this.ctx.siteDescription || '';
-        },
+    seoTitle() {
+      if (this.ctx.isHome) return this.values.seo_title || this.ctx.homeTitle || '';
+      return this.values.seo_title || this.fallbackTitle || this.ctx.pageTitle || '';
+    },
 
-        ogTitle() {
-          return this.values.og_title || this.seoTitle;
-        },
+    fullTitle() {
+      const t = this.seoTitle;
+      const s = this.ctx.siteTitle;
+      if (this.ctx.isHome) return t || s;
+      if (!t || t === s) return s;
+      return `${t}${this.ctx.separator}${s}`;
+    },
 
-        ogDescription() {
-          return this.values.og_description || this.seoDescription;
-        },
+    seoDescription() {
+      return this.values.seo_description || this.fallbackDescription || this.ctx.siteDescription || '';
+    },
 
-        hasOgImage() {
-          const v = this.values.og_image;
-          if (Array.isArray(v)) return v.length > 0;
-          return !!(v && v.trim() && v.trim() !== '-');
-        },
+    ogTitle() {
+      return this.values.og_title || this.seoTitle;
+    },
 
-        twitterCard() {
-          return this.values.twitter_card || 'summary_large_image';
-        },
+    ogDescription() {
+      return this.values.og_description || this.seoDescription;
+    },
 
-        robots() {
-          return this.values.seo_robots || 'index, follow';
-        },
+    hasOgImage() {
+      const v = this.values.og_image;
+      if (Array.isArray(v)) return v.length > 0;
+      return !!(v && v.trim() && v.trim() !== '-');
+    },
 
-        isIndexed() {
-          return !this.robots.includes('noindex');
-        },
+    // Image réellement partagée : champ de la page (valeur en direct), sinon image du site, sinon première image
+    ogImageUrl() {
+      return this.fileUrl(this.values.og_image) || this.ctx.siteOgImageUrl || this.ctx.autoImageUrl || null;
+    },
 
-        displayDomain() {
-          return (this.ctx.siteUrl || this.ctx.pageUrl || '')
-            .replace(/^https?:\/\//, '')
-            .replace(/\/.*$/, '');
-        },
+    twitterImageUrl() {
+      return this.fileUrl(this.values.twitter_image) || this.ogImageUrl;
+    },
 
-        displayPath() {
-          const url  = this.ctx.pageUrl || this.ctx.siteUrl || '';
-          const path = url.replace(/^https?:\/\/[^/]+/, '');
-          return path || '/';
-        },
+    twitterCard() {
+      return this.values.twitter_card || 'summary_large_image';
+    },
 
-        // --- Character counts ---
+    robots() {
+      return this.values.seo_robots || 'index, follow';
+    },
 
-        titleLength() {
-          return this.fullTitle.length;
-        },
+    isIndexed() {
+      return !this.robots.includes('noindex');
+    },
 
-        descLength() {
-          return this.seoDescription.length;
-        },
+    displayDomain() {
+      return (this.ctx.siteUrl || this.ctx.pageUrl || '')
+        .replace(/^https?:\/\//, '')
+        .replace(/\/.*$/, '');
+    },
 
-        titleBar() {
-          const pct = Math.min(100, (this.titleLength / 60) * 100);
-          let color = '#3c8f47'; // ok
-          if (this.titleLength > 60) color = '#cc3333';
-          else if (this.titleLength < 30) color = '#cc8800';
-          return { width: `${pct}%`, background: color };
-        },
+    displayPath() {
+      const url  = this.ctx.pageUrl || this.ctx.siteUrl || '';
+      const path = url.replace(/^https?:\/\/[^/]+/, '');
+      return path || '/';
+    },
 
-        descBar() {
-          const pct = Math.min(100, (this.descLength / 160) * 100);
-          let color = '#3c8f47';
-          if (this.descLength > 160) color = '#cc3333';
-          else if (this.descLength < 80 && this.descLength > 0) color = '#cc8800';
-          else if (this.descLength === 0) color = '#cc3333';
-          return { width: `${pct}%`, background: color };
-        },
+    // --- Character counts ---
 
-        // --- Checks ---
+    titleLength() {
+      return this.fullTitle.length;
+    },
 
-        checks() {
-          const items = [];
+    descLength() {
+      return this.seoDescription.length;
+    },
 
-          // Title
-          if (!this.values.seo_title) {
-            items.push({ status: 'warn', msg: 'SEO title not set — page title used as fallback' });
-          } else if (this.titleLength > 60) {
-            items.push({ status: 'error', msg: `Title too long — ${this.titleLength} / 60 chars` });
-          } else {
-            items.push({ status: 'ok', msg: `Title — ${this.titleLength} / 60 chars` });
-          }
+    titleBar() {
+      const pct = Math.min(100, (this.titleLength / 60) * 100);
+      let color = '#3c8f47'; // ok
+      if (this.titleLength > 60) color = '#cc3333';
+      else if (this.titleLength < 30) color = '#cc8800';
+      return { width: `${pct}%`, background: color };
+    },
 
-          // Description
-          if (!this.seoDescription) {
-            items.push({ status: 'error', msg: 'Meta description missing' });
-          } else if (!this.values.seo_description) {
-            items.push({ status: 'warn', msg: 'Meta description not set — site description used as fallback' });
-          } else if (this.descLength > 160) {
-            items.push({ status: 'warn', msg: `Description too long — ${this.descLength} / 160 chars` });
-          } else if (this.descLength < 80) {
-            items.push({ status: 'warn', msg: `Description short — ${this.descLength} / 160 chars` });
-          } else {
-            items.push({ status: 'ok', msg: `Description — ${this.descLength} / 160 chars` });
-          }
+    descBar() {
+      const pct = Math.min(100, (this.descLength / 160) * 100);
+      let color = '#3c8f47';
+      if (this.descLength > 160) color = '#cc3333';
+      else if (this.descLength < 80 && this.descLength > 0) color = '#cc8800';
+      else if (this.descLength === 0) color = '#cc3333';
+      return { width: `${pct}%`, background: color };
+    },
 
-          // OG image
-          if (!this.hasOgImage && this.ctx.siteOgImage) {
-            items.push({ status: 'warn', msg: 'OG image not set — site image used as fallback' });
-          } else if (!this.hasOgImage) {
-            items.push({ status: 'warn', msg: 'OG image not set — social shares will have no image' });
-          } else {
-            items.push({ status: 'ok', msg: 'OG image set' });
-          }
+    // --- Checks (mêmes seuils que la vue SEO, src/Audit.php) ---
 
-          // Robots
-          if (!this.isIndexed) {
-            items.push({ status: 'warn', msg: `Robots: ${this.robots}` });
-          } else {
-            items.push({ status: 'ok', msg: `Robots: ${this.robots}` });
-          }
+    checks() {
+      const items = [];
+      const t = (key, data) => this.$t('visibilizer.preview.' + key, data);
+      // Valeur de repli : simple information si on compte les valeurs par défaut
+      const fallback = readPref() ? 'info' : 'warn';
 
-          return items;
-        },
+      // Title
+      const tl = this.titleLength;
+      if (tl > 70) items.push({ status: 'error', msg: t('title.long', { length: tl }) });
+      else if (tl < 15) items.push({ status: 'error', msg: t('title.short', { length: tl }) });
+      else if (tl > 60) items.push({ status: 'warn', msg: t('title.longish', { length: tl }) });
+      else if (tl < 30) items.push({ status: 'warn', msg: t('title.shortish', { length: tl }) });
+      else items.push({ status: 'ok', msg: t('title.ok', { length: tl }) });
+      if (this.titleSource !== 'custom') {
+        items.push({ status: fallback, msg: t('title.' + this.titleSource, { field: (this.ctx.fallbacks?.title || []).join(', ') }) });
+      }
 
-        score() {
-          const ok = this.checks.filter(c => c.status === 'ok').length;
-          return Math.round((ok / this.checks.length) * 100);
-        },
+      // Description
+      const dl = this.descLength;
+      if (this.descSource === 'none') {
+        items.push({ status: 'error', msg: t('desc.missing') });
+      } else {
+        if (dl > 200) items.push({ status: 'error', msg: t('desc.long', { length: dl }) });
+        else if (dl < 30) items.push({ status: 'error', msg: t('desc.short', { length: dl }) });
+        else if (dl > 160) items.push({ status: 'warn', msg: t('desc.longish', { length: dl }) });
+        else if (dl < 70) items.push({ status: 'warn', msg: t('desc.shortish', { length: dl }) });
+        else items.push({ status: 'ok', msg: t('desc.ok', { length: dl }) });
+        if (this.descSource !== 'custom') {
+          items.push({ status: fallback, msg: t('desc.' + this.descSource, { field: (this.ctx.fallbacks?.description || []).join(', ') }) });
+        }
+      }
 
-        scoreLabel() {
-          if (this.score >= 75) return 'Good';
-          if (this.score >= 50) return 'Average';
-          return 'Needs work';
-        },
+      // OG image
+      if (!this.hasOgImage && this.ctx.siteOgImage) {
+        items.push({ status: fallback, msg: t('image.site') });
+      } else if (!this.hasOgImage && this.ctx.autoImageUrl) {
+        items.push({ status: fallback, msg: t('image.auto') });
+      } else if (!this.hasOgImage) {
+        items.push({ status: 'warn', msg: t('image.missing') });
+      } else {
+        items.push({ status: 'ok', msg: t('image.ok') });
+      }
 
-        scoreClass() {
-          if (this.score >= 75) return 'ok';
-          if (this.score >= 50) return 'warn';
-          return 'error';
-        },
+      // Robots
+      items.push({ status: this.isIndexed ? 'ok' : 'warn', msg: `Robots : ${this.robots}` });
 
-        resolvedLabel() {
-          const l = this.label;
-          if (typeof l === 'string') return l;
-          const lang = document.documentElement.lang || 'en';
-          return l[lang] || l.en || Object.values(l)[0] || 'SEO Preview';
-        },
-      },
+      return items;
+    },
 
-      // -----------------------------------------------------------------------
-      // Lifecycle
-      // -----------------------------------------------------------------------
+    score() {
+      const counted = this.checks.filter(c => c.status !== 'info');
+      const ok = counted.filter(c => c.status === 'ok').length;
+      return counted.length ? Math.round((ok / counted.length) * 100) : 0;
+    },
 
-      async created() {
-        await this.loadContext();
-      },
+    scoreLabel() {
+      if (this.score >= 75) return this.$t('visibilizer.preview.score.good');
+      if (this.score >= 50) return this.$t('visibilizer.preview.score.average');
+      return this.$t('visibilizer.preview.score.poor');
+    },
 
-      // -----------------------------------------------------------------------
-      // Methods
-      // -----------------------------------------------------------------------
+    scoreClass() {
+      if (this.score >= 75) return 'ok';
+      if (this.score >= 50) return 'warn';
+      return 'error';
+    },
 
-      methods: {
-        async loadContext() {
-          try {
-            // e.g. "pages/projects+hospitality" or "site"
-            const parent = this.parent || this.$panel?.view?.props?.api || this.$store?.state?.content?.current || '';
-            const match  = parent.replace(/^\//, '').match(/^pages\/(.+)$/);
-            const slug   = match ? match[1].replace(/\//g, '+') : 'site';
-            const data = await this.$api.get(`rllngr/visibilizer/${slug}`);
-            if (data) this.ctx = data;
-          } catch {
-            /* silent */
-          }
-        },
-      },
-
-      // -----------------------------------------------------------------------
-      // Template
-      // -----------------------------------------------------------------------
-
-      template: `
-        <k-section :label="resolvedLabel">
-          <div class="vis-preview">
-
-            <!-- Score badge -->
-            <div class="vis-score" :class="'vis-score--' + scoreClass">
-              <span class="vis-score-number">{{ score }}<small>%</small></span>
-              <span class="vis-score-label">{{ scoreLabel }}</span>
-            </div>
-
-            <!-- Tabs -->
-            <div class="vis-tabs">
-              <button
-                v-for="t in [['google','Google'],['social','Social'],['twitter','Twitter / X']]"
-                :key="t[0]"
-                :class="['vis-tab', tab === t[0] && 'vis-tab--active']"
-                @click="tab = t[0]"
-              >{{ t[1] }}</button>
-            </div>
-
-            <!-- Google SERP preview -->
-            <div v-if="tab === 'google'" class="vis-google">
-              <div class="vis-google-header">
-                <div class="vis-google-favicon">G</div>
-                <div>
-                  <div class="vis-google-site">{{ ctx.siteTitle }}</div>
-                  <div class="vis-google-url">{{ displayDomain }}{{ displayPath }}</div>
-                </div>
-              </div>
-              <div class="vis-google-title" :class="titleLength > 60 ? 'vis-truncated' : ''">
-                {{ fullTitle || 'Page title' }}
-              </div>
-              <div class="vis-google-desc">
-                {{ seoDescription || 'No meta description set.' }}
-              </div>
-              <div class="vis-char-row">
-                <span class="vis-char-label">Title</span>
-                <div class="vis-char-bar"><div class="vis-char-fill" :style="titleBar"></div></div>
-                <span class="vis-char-count" :class="titleLength > 60 ? 'vis-over' : ''">{{ titleLength }}/60</span>
-              </div>
-              <div class="vis-char-row">
-                <span class="vis-char-label">Desc.</span>
-                <div class="vis-char-bar"><div class="vis-char-fill" :style="descBar"></div></div>
-                <span class="vis-char-count" :class="descLength > 160 ? 'vis-over' : ''">{{ descLength }}/160</span>
-              </div>
-            </div>
-
-            <!-- OG / Social card -->
-            <div v-if="tab === 'social'" class="vis-og">
-              <div class="vis-og-image" :class="!hasOgImage ? 'vis-og-image--empty' : ''">
-                <span v-if="!hasOgImage" class="vis-og-placeholder">No OG image — 1200 × 630 px recommended</span>
-              </div>
-              <div class="vis-og-body">
-                <div class="vis-og-domain">{{ displayDomain.split('/')[0].toUpperCase() }}</div>
-                <div class="vis-og-title">{{ ogTitle || 'OG title' }}</div>
-                <div class="vis-og-desc">{{ ogDescription || 'OG description' }}</div>
-              </div>
-            </div>
-
-            <!-- Twitter / X card -->
-            <div v-if="tab === 'twitter'" class="vis-twitter">
-              <div class="vis-twitter-image" :class="!hasOgImage ? 'vis-twitter-image--empty' : ''">
-                <span v-if="!hasOgImage" class="vis-og-placeholder">No image set</span>
-              </div>
-              <div class="vis-twitter-body">
-                <div class="vis-twitter-title">{{ ogTitle || 'Twitter title' }}</div>
-                <div class="vis-twitter-desc">{{ ogDescription || 'Twitter description' }}</div>
-                <div class="vis-twitter-domain">{{ displayDomain.split('/')[0] }}</div>
-              </div>
-            </div>
-
-            <!-- Checks -->
-            <ul class="vis-checks">
-              <li
-                v-for="(c, i) in checks"
-                :key="i"
-                :class="['vis-check', 'vis-check--' + c.status]"
-              >
-                <span class="vis-check-icon">
-                  <span v-if="c.status === 'ok'">✓</span>
-                  <span v-else-if="c.status === 'warn'">⚠</span>
-                  <span v-else>✗</span>
-                </span>
-                {{ c.msg }}
-              </li>
-            </ul>
-
-          </div>
-        </k-section>
-      `,
+    resolvedLabel() {
+      const l = this.label;
+      if (typeof l === 'string') return l;
+      const lang = document.documentElement.lang || 'en';
+      return l[lang] || l.en || Object.values(l)[0] || 'SEO Preview';
     },
   },
-});
+
+  // -----------------------------------------------------------------------
+  // Lifecycle
+  // -----------------------------------------------------------------------
+
+  async created() {
+    await this.loadContext();
+  },
+
+  // -----------------------------------------------------------------------
+  // Methods
+  // -----------------------------------------------------------------------
+
+  methods: {
+    // Champ fichiers : Kirby 5 donne [{ image: { url } }, …] dans les valeurs en direct
+    fileUrl(value) {
+      const first = Array.isArray(value) ? value[0] : null;
+      if (!first || typeof first !== 'object') return null;
+      return first.image?.url || first.url || null;
+    },
+
+    // Texte brut (le champ peut contenir du HTML), coupé comme Str::excerpt côté PHP
+    fallbackText(type) {
+      const max = type === 'title' ? 60 : (this.ctx.fallbacks?.length || 160);
+      for (const name of this.ctx.fallbacks?.[type] || []) {
+        const raw = this.values[name];
+        if (typeof raw !== 'string' || !raw.trim()) continue;
+        const el = document.createElement('div');
+        el.innerHTML = raw.replace(/<br\s*\/?>|<\/(p|li|h[1-6]|div|blockquote|figcaption|td)>/gi, ' $&');
+        const text = el.textContent.replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        if (text.length <= max) return text;
+        const cut = text.slice(0, max);
+        return cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : max).trim() + ' …';
+      }
+      return '';
+    },
+
+    async loadContext() {
+      try {
+        // e.g. "pages/projects+hospitality" or "site"
+        const parent = this.parent || this.$panel?.view?.props?.api || this.$store?.state?.content?.current || '';
+        const match  = parent.replace(/^\//, '').match(/^pages\/(.+)$/);
+        const slug   = match ? match[1].replace(/\//g, '+') : 'site';
+        const data = await this.$api.get(`rllngr/visibilizer/${slug}`);
+        if (data) this.ctx = data;
+      } catch {
+        /* silent */
+      }
+    },
+  },
+
+  // -----------------------------------------------------------------------
+  // Template
+  // -----------------------------------------------------------------------
+
+  ...(() => {
+var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-section',{attrs:{"label":_vm.resolvedLabel}},[_c('div',{staticClass:"vis-preview"},[_c('div',{staticClass:"vis-score",class:'vis-score--' + _vm.scoreClass},[_c('span',{staticClass:"vis-score-number"},[_vm._v(_vm._s(_vm.score)),_c('small',[_vm._v("%")])]),_c('span',{staticClass:"vis-score-label"},[_vm._v(_vm._s(_vm.scoreLabel))])]),_c('div',{staticClass:"vis-tabs"},_vm._l(([['google','Google'],['social',_vm.$t('visibilizer.preview.tab.social')],['twitter','Twitter / X']]),function(t){return _c('button',{key:t[0],class:['vis-tab', _vm.tab === t[0] && 'vis-tab--active'],on:{"click":function($event){_vm.tab = t[0]}}},[_vm._v(_vm._s(t[1]))])}),0),(_vm.tab === 'google')?_c('div',{staticClass:"vis-google"},[_c('div',{staticClass:"vis-google-header"},[_c('div',{staticClass:"vis-google-favicon"},[_vm._v("G")]),_c('div',[_c('div',{staticClass:"vis-google-site"},[_vm._v(_vm._s(_vm.ctx.siteTitle))]),_c('div',{staticClass:"vis-google-url"},[_vm._v(_vm._s(_vm.displayDomain)+_vm._s(_vm.displayPath))])])]),_c('div',{staticClass:"vis-google-title",class:_vm.titleLength > 60 ? 'vis-truncated' : ''},[_vm._v(" "+_vm._s(_vm.fullTitle || _vm.$t('visibilizer.preview.placeholder.title'))+" ")]),_c('div',{staticClass:"vis-google-desc"},[_vm._v(" "+_vm._s(_vm.seoDescription || _vm.$t('visibilizer.preview.placeholder.description'))+" ")]),_c('div',{staticClass:"vis-char-row"},[_c('span',{staticClass:"vis-char-label"},[_vm._v(_vm._s(_vm.$t('visibilizer.preview.chars.title')))]),_c('div',{staticClass:"vis-char-bar"},[_c('div',{staticClass:"vis-char-fill",style:(_vm.titleBar)})]),_c('span',{staticClass:"vis-char-count",class:_vm.titleLength > 60 ? 'vis-over' : ''},[_vm._v(_vm._s(_vm.titleLength)+"/60")])]),_c('div',{staticClass:"vis-char-row"},[_c('span',{staticClass:"vis-char-label"},[_vm._v(_vm._s(_vm.$t('visibilizer.preview.chars.description')))]),_c('div',{staticClass:"vis-char-bar"},[_c('div',{staticClass:"vis-char-fill",style:(_vm.descBar)})]),_c('span',{staticClass:"vis-char-count",class:_vm.descLength > 160 ? 'vis-over' : ''},[_vm._v(_vm._s(_vm.descLength)+"/160")])])]):_vm._e(),(_vm.tab === 'social')?_c('div',{staticClass:"vis-og"},[_c('div',{staticClass:"vis-og-image",class:!_vm.ogImageUrl ? 'vis-og-image--empty' : ''},[(_vm.ogImageUrl)?_c('img',{attrs:{"src":_vm.ogImageUrl,"alt":""}}):_c('span',{staticClass:"vis-og-placeholder"},[_vm._v(_vm._s(_vm.$t('visibilizer.preview.placeholder.ogimage')))])]),_c('div',{staticClass:"vis-og-body"},[_c('div',{staticClass:"vis-og-domain"},[_vm._v(_vm._s(_vm.displayDomain.split('/')[0].toUpperCase()))]),_c('div',{staticClass:"vis-og-title"},[_vm._v(_vm._s(_vm.ogTitle || _vm.$t('visibilizer.preview.placeholder.title')))]),_c('div',{staticClass:"vis-og-desc"},[_vm._v(_vm._s(_vm.ogDescription || _vm.$t('visibilizer.preview.placeholder.description')))])])]):_vm._e(),(_vm.tab === 'twitter')?_c('div',{staticClass:"vis-twitter"},[_c('div',{staticClass:"vis-twitter-image",class:!_vm.twitterImageUrl ? 'vis-twitter-image--empty' : ''},[(_vm.twitterImageUrl)?_c('img',{attrs:{"src":_vm.twitterImageUrl,"alt":""}}):_c('span',{staticClass:"vis-og-placeholder"},[_vm._v(_vm._s(_vm.$t('visibilizer.preview.placeholder.image')))])]),_c('div',{staticClass:"vis-twitter-body"},[_c('div',{staticClass:"vis-twitter-title"},[_vm._v(_vm._s(_vm.ogTitle || _vm.$t('visibilizer.preview.placeholder.title')))]),_c('div',{staticClass:"vis-twitter-desc"},[_vm._v(_vm._s(_vm.ogDescription || _vm.$t('visibilizer.preview.placeholder.description')))]),_c('div',{staticClass:"vis-twitter-domain"},[_vm._v(_vm._s(_vm.displayDomain.split('/')[0]))])])]):_vm._e(),_c('ul',{staticClass:"vis-checks"},_vm._l((_vm.checks),function(c,i){return _c('li',{key:i,class:['vis-check', 'vis-check--' + c.status]},[_c('span',{staticClass:"vis-check-icon"},[(c.status === 'ok')?_c('span',[_vm._v("✓")]):(c.status === 'warn')?_c('span',[_vm._v("⚠")]):(c.status === 'info')?_c('span',[_vm._v("i")]):_c('span',[_vm._v("✗")])]),_vm._v(" "+_vm._s(c.msg)+" ")])}),0)])])
+}
+var staticRenderFns = []
+return { render, staticRenderFns }
+})(),
+};
+
+// -----------------------------------------------------------------------------
+// Vue SEO du Panel — données calculées en PHP (src/Audit.php), passées en props par la zone `visibilizer`.
+// Habillage de moniter : crème, barres d'encre en minuscules, blocs blancs, pastilles.
+// -----------------------------------------------------------------------------
+
+const TABS = ['pages', 'images', 'links']
+const LEVELS = ['error', 'warn', 'ok']
+const BATCH = 5
+
+// Une carte par famille de contrôles, avec sa couleur de pastille et l'onglet qu'elle ouvre
+const CARDS = [
+  { key: 'titles', color: 'blue', tab: 'pages' },
+  { key: 'descriptions', color: 'green', tab: 'pages' },
+  { key: 'alts', color: 'magenta', tab: 'images' },
+  { key: 'links', color: 'orange', tab: 'links' },
+]
+
+const count = (items, level) => items.filter(l => l === level).length
+const SeoView = {
+  props: {
+    tab: String,
+    pages: Array,
+    images: Array,
+    links: Array,
+  },
+  data() {
+    return {
+      current: this.tab || 'pages',
+      level: 'all',
+      query: '',
+      open: {},
+      results: {},
+      checking: null,
+      fallbacks: readPref(),
+    }
+  },
+  computed: {
+    linkRows() {
+      return this.links.map(l => ({ ...l, result: this.results[l.href] || l.result }))
+    },
+    // Niveau de chaque élément, par carte (null = lien externe pas encore vérifié)
+    levels() {
+      return {
+        titles: this.pages.map(p => this.checkLevel(p.checks.title)),
+        descriptions: this.pages.map(p => this.checkLevel(p.checks.description)),
+        alts: this.images.map(i => (i.altOk ? 'ok' : 'error')),
+        links: this.linkRows.map(l => (l.result ? l.result.level : null)),
+      }
+    },
+    cards() {
+      return CARDS.map(card => {
+        const levels = this.levels[card.key]
+        const counts = { ok: count(levels, 'ok'), warn: count(levels, 'warn'), error: count(levels, 'error'), pending: count(levels, null) }
+        const done = counts.ok + counts.warn + counts.error
+        const score = done ? Math.round(((counts.ok + counts.warn * 0.5) / done) * 100) : null
+        // Légende : les textes alternatifs n'ont pas de niveau « acceptable »
+        const prefix = card.key === 'links' ? 'links.' : card.key === 'alts' ? 'alts.' : ''
+        const legend = ['ok', 'warn', 'error', 'pending']
+          .filter(l => counts[l] && (l !== 'warn' || card.key !== 'alts'))
+          .map(l => ({ level: l, text: this.$t('visibilizer.count.' + (l === 'pending' ? 'links.' : prefix) + l, { count: counts[l] }) }))
+        return {
+          ...card,
+          counts,
+          total: levels.length,
+          legend,
+          text: score === null ? '—' : String(score),
+          unit: score === null ? '' : '%',
+          segments: ['ok', 'warn', 'error', 'pending'].map(l => ({ level: l, width: levels.length ? (counts[l] / levels.length) * 100 : 0 })),
+        }
+      })
+    },
+    tabs() {
+      return TABS.map(key => ({ key, count: this.source(key).length, errors: this.source(key).filter(r => this.levelOf(r) === 'error').length }))
+    },
+    rows() {
+      const q = this.query.trim().toLowerCase()
+      return this.source(this.current).filter(row => {
+        if (this.level !== 'all' && this.levelOf(row) !== this.level) return false
+        return !q || this.haystack(row).includes(q)
+      })
+    },
+    filters() {
+      const rows = this.source(this.current)
+      return [{ key: 'all', count: rows.length }].concat(LEVELS.map(key => ({ key, count: rows.filter(r => this.levelOf(r) === key).length })))
+    },
+    pendingLinks() {
+      return this.linkRows.filter(l => !l.internal && !l.result).map(l => l.href)
+    },
+  },
+  mounted() {
+    // Vérifie les liens externes jamais vérifiés (ou sortis du cache)
+    if (this.pendingLinks.length) this.check(this.pendingLinks)
+  },
+  methods: {
+    source(tab) {
+      return tab === 'pages' ? this.pages : tab === 'images' ? this.images : this.linkRows
+    },
+    levelOf(row) {
+      if (this.current === 'links' || row.href) return row.result ? row.result.level : 'pending'
+      if (row.checks) return this.pageLevel(row)
+      return row.level
+    },
+    // Avec « compter les valeurs par défaut », un titre / une description de repli n'est pas un problème en soi
+    counts(issue) {
+      return !(this.fallbacks && issue.fallback)
+    },
+    checkLevel(check) {
+      return worst(check.issues.filter(this.counts).map(i => i.level))
+    },
+    pageLevel(row) {
+      return worst([row.checks.title, row.checks.description, row.checks.image].map(this.checkLevel))
+    },
+    toggleFallbacks() {
+      this.fallbacks = !this.fallbacks
+      try {
+        window.localStorage.setItem(STORE, this.fallbacks ? '1' : '0')
+      } catch (e) {
+        /* préférence non gardée */
+      }
+    },
+    sourceLabel(value) {
+      return this.$t('visibilizer.source.' + value.source, { field: value.field })
+    },
+    haystack(row) {
+      if (row.href) return [row.label, row.href].concat(row.from.map(f => f.title)).join(' ').toLowerCase()
+      if (row.filename) return [row.filename, row.alt, row.parent.title].join(' ').toLowerCase()
+      return [row.title, row.path, row.metaTitle.value, row.description.value].join(' ').toLowerCase()
+    },
+    select(tab, level = 'all') {
+      this.current = tab
+      this.level = level
+      this.open = {}
+      const url = new URL(window.location.href)
+      url.searchParams.set('tab', tab)
+      window.history.replaceState(window.history.state, '', url)
+    },
+    toggle(key) {
+      this.$set(this.open, key, !this.open[key])
+    },
+    issues(row) {
+      if (row.checks) return [].concat(row.checks.title.issues, row.checks.description.issues, row.checks.image.issues)
+      return row.issues || []
+    },
+    issue(i) {
+      return this.$t('visibilizer.issue.' + i.key, i.data || {})
+    },
+    linkDetail(result) {
+      if (!result) return this.$t('visibilizer.pending')
+      return result.key ? this.$t('visibilizer.link.' + result.key, result) : this.$t('visibilizer.link.ok')
+    },
+    async check(hrefs, force = false) {
+      this.checking = { done: 0, total: hrefs.length }
+      for (let i = 0; i < hrefs.length; i += BATCH) {
+        const batch = hrefs.slice(i, i + BATCH)
+        try {
+          const res = await this.$api.post('rllngr/visibilizer-audit/links', { hrefs: batch, force })
+          for (const href of Object.keys(res || {})) this.$set(this.results, href, res[href])
+        } catch (e) {
+          /* on garde l'état précédent */
+        }
+        this.checking.done = Math.min(hrefs.length, i + BATCH)
+      }
+      this.checking = null
+    },
+    async recheck() {
+      // Les liens internes sont recalculés côté serveur au rechargement de la vue
+      await this.$panel.view.reload()
+      this.results = {}
+      await this.check(this.links.filter(l => !l.internal).map(l => l.href), true)
+    },
+  },
+  ...(() => {
+var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-panel-inside',{staticClass:"k-visibilizer-view"},[_c('div',{staticClass:"k-vis"},[_c('header',{staticClass:"k-vis-ink k-vis-header"},[_c('h1',[_vm._v(_vm._s(_vm.$t('visibilizer.seo')))]),_c('nav',{staticClass:"k-vis-tabs"},_vm._l((_vm.tabs),function(t){return _c('button',{key:t.key,attrs:{"type":"button","aria-current":t.key === _vm.current ? 'true' : null},on:{"click":function($event){return _vm.select(t.key)}}},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.tab.' + t.key))+" "),_c('span',{staticClass:"k-vis-tab-count"},[_vm._v(_vm._s(t.count))])])}),0)]),_c('div',{staticClass:"k-vis-cards"},_vm._l((_vm.cards),function(c){return _c('button',{key:c.key,staticClass:"k-vis-card",attrs:{"type":"button","data-color":c.color},on:{"click":function($event){return _vm.select(c.tab, c.counts.error ? 'error' : 'all')}}},[_c('span',{staticClass:"k-vis-card-dot",attrs:{"data-size":c.text.length > 3 ? 's' : 'l'}},[_c('span',{staticClass:"k-vis-card-value"},[_vm._v(_vm._s(c.text))]),_c('span',{staticClass:"k-vis-card-unit"},[_vm._v(_vm._s(c.unit))])]),_c('span',{staticClass:"k-vis-card-label"},[_vm._v(_vm._s(_vm.$t('visibilizer.card.' + c.key)))]),_c('span',{staticClass:"k-vis-card-bar",attrs:{"aria-hidden":"true"}},_vm._l((c.segments),function(s){return _c('span',{key:s.level,style:({ width: s.width + '%' }),attrs:{"data-level":s.level}})}),0),_c('span',{staticClass:"k-vis-card-legend"},[_vm._l((c.legend),function(l){return _c('span',{key:l.level,attrs:{"data-level":l.level}},[_vm._v(_vm._s(l.text))])}),(!c.total)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):_vm._e()],2)])}),0),_c('div',{staticClass:"k-vis-mode"},[_c('button',{staticClass:"k-vis-switch",attrs:{"type":"button","role":"switch","aria-checked":_vm.fallbacks ? 'true' : 'false'},on:{"click":_vm.toggleFallbacks}},[_c('span',{staticClass:"k-vis-switch-track"},[_c('span',{staticClass:"k-vis-switch-thumb"})]),_vm._v(" "+_vm._s(_vm.$t('visibilizer.fallbacks'))+" ")]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t(_vm.fallbacks ? 'visibilizer.fallbacks.on' : 'visibilizer.fallbacks.off')))])]),_c('section',{staticClass:"k-vis-block"},[_c('div',{staticClass:"k-vis-toolbar"},[_c('nav',{staticClass:"k-vis-filters"},_vm._l((_vm.filters),function(f){return _c('button',{key:f.key,attrs:{"type":"button","data-level":f.key,"aria-current":f.key === _vm.level ? 'true' : null,"disabled":!f.count && f.key !== 'all'},on:{"click":function($event){_vm.level = f.key}}},[(f.key !== 'all')?_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":f.key}}):_vm._e(),_vm._v(" "+_vm._s(_vm.$t(f.key === 'all' ? 'visibilizer.filter.all' : 'visibilizer.level.' + f.key))+" "),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(f.count))])])}),0),_c('div',{staticClass:"k-vis-tools"},[(_vm.current === 'links' && _vm.links.length)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button","disabled":!!_vm.checking},on:{"click":_vm.recheck}},[_c('k-icon',{attrs:{"type":"refresh"}}),(_vm.checking)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.checking', _vm.checking)))]):_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.recheck')))])],1):_vm._e(),_c('label',{staticClass:"k-vis-search"},[_c('k-icon',{attrs:{"type":"search"}}),_c('input',{directives:[{name:"model",rawName:"v-model",value:(_vm.query),expression:"query"}],attrs:{"type":"search","placeholder":_vm.$t('visibilizer.search')},domProps:{"value":(_vm.query)},on:{"input":function($event){if($event.target.composing)return;_vm.query=$event.target.value}}})],1)])]),(!_vm.source(_vm.current).length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):(!_vm.rows.length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty.filter')))]):(_vm.current === 'pages')?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"pages"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.page')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.title')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.description')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.image')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.index')))]),_c('span')]),_vm._l((_vm.rows),function(row){return [_c('div',{key:row.id,staticClass:"k-vis-row",class:{ open: _vm.open[row.id] },on:{"click":function($event){return _vm.toggle(row.id)}}},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.pageLevel(row),"title":_vm.$t('visibilizer.level.' + _vm.pageLevel(row))}}),_c('span',{staticClass:"k-vis-cell-page"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.panel},nativeOn:{"click":function($event){$event.stopPropagation();}}},[_vm._v(_vm._s(row.title))]),_c('span',{staticClass:"k-vis-path",attrs:{"title":row.path}},[_vm._v(_vm._s(row.path))])],1),_c('span',{staticClass:"k-vis-cell-text",attrs:{"data-level":_vm.checkLevel(row.checks.title)}},[(row.metaTitle.source !== 'custom')?_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.sourceLabel(row.metaTitle)))]):_vm._e(),_c('span',{class:{ 'k-vis-muted': row.metaTitle.source !== 'custom' }},[_vm._v(_vm._s(row.metaTitle.value))])]),_c('span',{staticClass:"k-vis-cell-text k-vis-clamp",attrs:{"data-level":_vm.checkLevel(row.checks.description)}},[(row.description.source !== 'custom' && row.description.source !== 'none')?_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.sourceLabel(row.description)))]):_vm._e(),(row.description.value)?_c('span',{class:{ 'k-vis-muted': row.description.source !== 'custom' }},[_vm._v(_vm._s(row.description.value))]):_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.none')))])]),_c('span',{staticClass:"k-vis-cell-thumb"},[(row.image && row.image.thumb)?_c('img',{attrs:{"src":row.image.thumb,"alt":"","loading":"lazy"}}):_c('span',{staticClass:"k-vis-thumb-empty"})]),_c('span',{staticClass:"k-vis-cell-index"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.indexable ? 'ok' : 'off',"title":row.indexable ? _vm.$t('visibilizer.indexable') : _vm.$t('visibilizer.noindex', { robots: row.robots })}})]),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[_c('k-link',{attrs:{"to":row.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1),_c('a',{attrs:{"href":row.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)],1)]),(_vm.open[row.id])?_c('ul',{key:row.id + ':issues',staticClass:"k-vis-issues"},[_vm._l((_vm.issues(row)),function(i,n){return _c('li',{key:n,class:{ 'k-vis-muted': !_vm.counts(i) }},[_vm._v(_vm._s(_vm.issue(i)))])}),(!_vm.issues(row).length)?_c('li',{attrs:{"data-level":"ok"}},[_vm._v(_vm._s(_vm.$t('visibilizer.level.ok')))]):_vm._e()],2):_vm._e()]})],2):(_vm.current === 'images')?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"images"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),_c('span'),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.file')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.alt')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.weight')))]),_c('span')]),_vm._l((_vm.rows),function(row){return _c('div',{key:row.id,staticClass:"k-vis-row"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.level,"title":row.issues.map(_vm.issue).join(' · ') || _vm.$t('visibilizer.level.ok')}}),_c('span',{staticClass:"k-vis-cell-thumb"},[(row.thumb)?_c('img',{attrs:{"src":row.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('span',{staticClass:"k-vis-cell-page"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.panel}},[_vm._v(_vm._s(row.filename))]),_c('k-link',{staticClass:"k-vis-path",attrs:{"to":row.parent.panel}},[_vm._v(_vm._s(row.parent.title))])],1),_c('span',{staticClass:"k-vis-cell-text",attrs:{"data-level":row.altOk ? 'ok' : 'error'}},[(row.alt)?_c('span',[_vm._v(_vm._s(row.alt))]):_c('span',{staticClass:"k-vis-flag"},[_vm._v(_vm._s(_vm.$t('visibilizer.issue.alt_missing')))])]),_c('span',{staticClass:"k-vis-cell-meta"},[_c('span',{class:{ 'k-vis-flag': row.issues.some(i => i.key === 'image_heavy') }},[_vm._v(_vm._s(row.niceSize))]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(row.width)+" × "+_vm._s(row.height))])]),_c('span',{staticClass:"k-vis-actions"},[_c('k-link',{attrs:{"to":row.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1),_c('a',{attrs:{"href":row.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)],1)])})],2):_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"links"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.status')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.link')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.details')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.from')))]),_c('span')]),_vm._l((_vm.rows),function(row){return [_c('div',{key:row.href,staticClass:"k-vis-row",class:{ open: _vm.open[row.href] },on:{"click":function($event){row.from.length > 1 && _vm.toggle(row.href)}}},[_c('span',{staticClass:"k-vis-cell-status"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.result ? row.result.level : 'pending'}}),_c('span',{staticClass:"k-vis-code"},[_vm._v(_vm._s(row.result && row.result.code ? row.result.code : '—'))])]),_c('span',{staticClass:"k-vis-cell-page"},[_c('span',{staticClass:"k-vis-href",attrs:{"title":row.href}},[_vm._v(_vm._s(row.label))]),_c('span',{staticClass:"k-vis-path"},[_vm._v(_vm._s(_vm.$t(row.internal ? 'visibilizer.internal' : 'visibilizer.external')))])]),_c('span',{staticClass:"k-vis-cell-text",class:{ 'k-vis-muted': !row.result }},[_vm._v(_vm._s(_vm.linkDetail(row.result)))]),_c('span',{staticClass:"k-vis-cell-from"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.from[0].panel},nativeOn:{"click":function($event){$event.stopPropagation();}}},[_vm._v(_vm._s(row.from[0].title))]),(row.from.length > 1)?_c('span',{staticClass:"k-vis-muted",attrs:{"title":row.from.slice(1).map(f => f.title).join(', ')}},[_vm._v(_vm._s(_vm.$t('visibilizer.more', { count: row.from.length - 1 })))]):_vm._e()],1),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[_c('a',{attrs:{"href":row.result && row.result.internal ? row.label : row.href,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)])]),(_vm.open[row.href])?_c('ul',{key:row.href + ':from',staticClass:"k-vis-issues k-vis-from"},_vm._l((row.from),function(f){return _c('li',{key:f.panel},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":f.panel}},[_vm._v(_vm._s(f.title))])],1)}),0):_vm._e()]})],2)]),_c('p',{staticClass:"k-vis-footnote"},[_vm._v(_vm._s(_vm.$t('visibilizer.footnote')))]),_c('footer',{staticClass:"k-vis-ink k-vis-footer"},[_c('span',[_vm._v("visibilizer")]),_c('a',{attrs:{"href":"https://rollinger.design","target":"_blank","rel":"noopener"}},[_vm._v("rollinger.design")])])])])
+}
+var staticRenderFns = []
+return { render, staticRenderFns }
+})(),
+}
+
+panel.plugin('rllngr/kirby-visibilizer', {
+  sections: {
+    'seo-preview': SeoPreview,
+  },
+  components: {
+    'k-visibilizer-seo-view': SeoView,
+  },
+})
