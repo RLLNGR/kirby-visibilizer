@@ -3,6 +3,8 @@
 use Kirby\Cms\App;
 use Kirby\Exception\PermissionException;
 use Kirby\Toolkit\I18n;
+use Kirby\Content\Field;
+use Rllngr\KirbyVisibilizer\Alt;
 use Rllngr\KirbyVisibilizer\Audit;
 use Rllngr\KirbyVisibilizer\LinkChecker;
 use Rllngr\KirbyVisibilizer\LlmGenerator;
@@ -16,6 +18,7 @@ load([
     'Rllngr\\KirbyVisibilizer\\Robots'       => __DIR__ . '/src/Robots.php',
     'Rllngr\\KirbyVisibilizer\\LlmGenerator' => __DIR__ . '/src/LlmGenerator.php',
     'Rllngr\\KirbyVisibilizer\\Audit'        => __DIR__ . '/src/Audit.php',
+    'Rllngr\\KirbyVisibilizer\\Alt'          => __DIR__ . '/src/Alt.php',
     'Rllngr\\KirbyVisibilizer\\LinkChecker'  => __DIR__ . '/src/LinkChecker.php',
 ]);
 
@@ -62,6 +65,13 @@ App::plugin('rllngr/kirby-visibilizer', [
         ],
     ],
 
+    // $image->altText() : le champ alt, sinon le modèle `alt.template(s)`
+    'fileMethods' => [
+        'altText' => function () {
+            return new Field($this, 'altText', Alt::text($this));
+        },
+    ],
+
     'translations' => [
         'fr' => require __DIR__ . '/translations/fr.php',
         'en' => require __DIR__ . '/translations/en.php',
@@ -69,6 +79,28 @@ App::plugin('rllngr/kirby-visibilizer', [
 
     'api' => [
         'routes' => [
+            [
+                // Écrit le texte généré dans les champs alt vides des images auditées
+                'pattern' => 'rllngr/visibilizer-audit/alts',
+                'method'  => 'POST',
+                'action'  => function () {
+                    if (!visibilizerPanelAccess()) {
+                        throw new PermissionException(t('visibilizer.forbidden'));
+                    }
+                    $done   = 0;
+                    $failed = 0;
+                    foreach ((new Audit(kirby()))->images() as $file) {
+                        if (Alt::value($file) !== '' || ($text = Alt::generate($file)) === '') continue;
+                        try {
+                            $file->update([Alt::field() => $text]);
+                            $done++;
+                        } catch (Throwable $e) {
+                            $failed++;
+                        }
+                    }
+                    return ['done' => $done, 'failed' => $failed];
+                },
+            ],
             [
                 // Vérifie un lot de liens externes (la vue les envoie par petits lots)
                 'pattern' => 'rllngr/visibilizer-audit/links',
@@ -194,6 +226,13 @@ App::plugin('rllngr/kirby-visibilizer', [
                 'description'  => 'llmsdescription',
                 'instructions' => 'llmsinstructions',
             ],
+        ],
+
+        // Texte alternatif de repli : requêtes Kirby, ex. '{{ page.title }} — {{ page.client }}, {{ page.city }} · {{ site.title }}'
+        // `templates` : par template de la page parente ('site' pour les fichiers du site)
+        'alt' => [
+            'template'  => null,
+            'templates' => [],
         ],
 
         // Vue SEO du Panel

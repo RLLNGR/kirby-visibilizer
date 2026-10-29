@@ -77,7 +77,7 @@ The Panel gets an **SEO** entry in its menu (`/panel/seo`), styled like the [mon
 'rllngr.kirby-visibilizer' => [
     'panel' => [
         'access'   => true,           // false to hide it, or a list of roles: ['admin', 'editor']
-        'altField' => 'alt',          // file field holding the alt text
+        'altField' => 'alt',          // file field holding the alt text (see "Image alt texts")
         'exclude'  => [
             'templates' => [],
             'pages'     => [],
@@ -168,6 +168,29 @@ When `seo_title` / `seo_description` are empty, a page can borrow one of its own
 ```
 
 Cascade: SEO field → template field → page title (titles) / site description (descriptions). The live preview and the SEO view show where each value comes from.
+
+### Image alt texts
+
+When an image's alt field is empty, an alt text can be built from a template using Kirby queries: the parent page (`page`), the file (`file`), the site (`site`). Empty values are dropped along with their separators.
+
+```php
+'rllngr.kirby-visibilizer' => [
+    'alt' => [
+        'template'  => '{{ page.title }} — {{ site.title }}',
+        'templates' => [ // per parent page template, 'site' for site files
+            'project' => '{{ page.title }}, {{ page.city }} ({{ page.country }}) — photo {{ file.credit }} · {{ site.title }}',
+        ],
+    ],
+],
+```
+
+Use it in your templates with `$image->altText()`: the alt field if filled in, otherwise the generated text (a regular field: `->esc()`, `->or()`…).
+
+```php
+<img src="<?= $image->url() ?>" alt="<?= $image->altText()->esc() ?>">
+```
+
+In the SEO view, generated texts are shown with an `auto` badge, and *Fill empty texts* writes them into the empty alt fields (existing texts are never overwritten) so editors can refine them.
 
 ---
 

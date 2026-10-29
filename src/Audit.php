@@ -172,22 +172,30 @@ class Audit
     // Images
     // -------------------------------------------------------------------------
 
-    public function imageReport(): array
+    /** Images du site et des pages auditées */
+    public function images()
     {
-        $altField = $this->kirby->option('rllngr.kirby-visibilizer.panel.altField', 'alt');
-        $rows     = [];
-
         $files = $this->kirby->site()->images();
         foreach ($this->pages() as $page) {
             $files = $files->add($page->images());
         }
+        return $files;
+    }
 
-        foreach ($files as $file) {
-            $alt    = $file->content()->get($altField)->value() ?? '';
-            $issues = [];
-            $level  = 'ok';
+    public function imageReport(): array
+    {
+        $rows = [];
 
-            if (trim($alt) === '') {
+        foreach ($this->images() as $file) {
+            $alt       = Alt::value($file);
+            $generated = $alt === '' ? Alt::generate($file) : '';
+            $issues    = [];
+            $level     = 'ok';
+
+            if ($alt === '' && $generated !== '') {
+                $issues[] = ['key' => 'alt_generated', 'level' => 'warn', 'fallback' => true];
+                $level    = 'warn';
+            } elseif ($alt === '') {
                 $issues[] = ['key' => 'alt_missing', 'level' => 'error'];
                 $level    = 'error';
             }
@@ -210,6 +218,7 @@ class Audit
                     'panel' => $parent->panel()->url(),
                 ],
                 'alt'      => $alt,
+                'generated' => $generated,
                 'size'     => $file->size(),
                 'niceSize' => $file->niceSize(),
                 'width'    => $file->width(),

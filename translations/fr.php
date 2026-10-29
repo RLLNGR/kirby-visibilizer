@@ -25,6 +25,12 @@ return [
     'visibilizer.count.links.error' => '{count} cassés',
     'visibilizer.count.links.pending' => '{count} en cours',
     'visibilizer.count.alts.ok'     => '{count} décrites',
+    'visibilizer.count.alts.warn' => "{count} générés",
+    'visibilizer.issue.alt_generated' => "Texte alternatif généré par le modèle (champ vide)",
+    'visibilizer.fill' => "Remplir les textes vides",
+    'visibilizer.fill.submit' => 'Remplir',
+    'visibilizer.fill.confirm' => "Écrire le texte généré dans le champ « texte alternatif » de {count} image(s) ? Les textes déjà saisis ne sont pas touchés, et chaque texte reste modifiable ensuite.",
+    'visibilizer.fill.done' => "{count} texte(s) alternatif(s) enregistré(s)",
     'visibilizer.count.alts.error'  => '{count} sans texte',
 
     'visibilizer.filter.all'        => 'Tout',

@@ -451,7 +451,7 @@ const SeoView = {
       return {
         titles: this.pages.map(p => this.checkLevel(p.checks.title)),
         descriptions: this.pages.map(p => this.checkLevel(p.checks.description)),
-        alts: this.images.map(i => (i.altOk ? 'ok' : 'error')),
+        alts: this.images.map(i => this.issuesLevel(i.issues.filter(x => x.key.startsWith('alt_')))),
         links: this.linkRows.map(l => (l.result ? l.result.level : null)),
       }
     },
@@ -461,10 +461,9 @@ const SeoView = {
         const counts = { ok: count(levels, 'ok'), warn: count(levels, 'warn'), error: count(levels, 'error'), pending: count(levels, null) }
         const done = counts.ok + counts.warn + counts.error
         const score = done ? Math.round(((counts.ok + counts.warn * 0.5) / done) * 100) : null
-        // Légende : les textes alternatifs n'ont pas de niveau « acceptable »
         const prefix = card.key === 'links' ? 'links.' : card.key === 'alts' ? 'alts.' : ''
         const legend = ['ok', 'warn', 'error', 'pending']
-          .filter(l => counts[l] && (l !== 'warn' || card.key !== 'alts'))
+          .filter(l => counts[l])
           .map(l => ({ level: l, text: this.$t('visibilizer.count.' + (l === 'pending' ? 'links.' : prefix) + l, { count: counts[l] }) }))
         return {
           ...card,
@@ -491,6 +490,10 @@ const SeoView = {
       const rows = this.source(this.current)
       return [{ key: 'all', count: rows.length }].concat(LEVELS.map(key => ({ key, count: rows.filter(r => this.levelOf(r) === key).length })))
     },
+    // Images sans texte alternatif mais avec un texte généré par le modèle
+    fillable() {
+      return this.images.filter(i => !i.alt && i.generated).length
+    },
     pendingLinks() {
       return this.linkRows.filter(l => !l.internal && !l.result).map(l => l.href)
     },
@@ -506,7 +509,10 @@ const SeoView = {
     levelOf(row) {
       if (this.current === 'links' || row.href) return row.result ? row.result.level : 'pending'
       if (row.checks) return this.pageLevel(row)
-      return row.level
+      return this.issuesLevel(row.issues)
+    },
+    issuesLevel(issues) {
+      return worst(issues.filter(this.counts).map(i => i.level))
     },
     // Avec « compter les valeurs par défaut », un titre / une description de repli n'est pas un problème en soi
     counts(issue) {
@@ -569,6 +575,23 @@ const SeoView = {
         this.checking.done = Math.min(hrefs.length, i + BATCH)
       }
       this.checking = null
+    },
+    fill() {
+      this.$panel.dialog.open({
+        component: 'k-text-dialog',
+        props: {
+          text: this.$t('visibilizer.fill.confirm', { count: this.fillable }),
+          submitButton: { text: this.$t('visibilizer.fill.submit'), icon: 'check', theme: 'positive' },
+        },
+        on: {
+          submit: async () => {
+            this.$panel.dialog.close()
+            const res = await this.$api.post('rllngr/visibilizer-audit/alts')
+            this.$panel.notification.success(this.$t('visibilizer.fill.done', { count: res.done }))
+            await this.$panel.view.reload()
+          },
+        },
+      })
     },
     async recheck() {
       // Les liens internes sont recalculés côté serveur au rechargement de la vue
@@ -646,6 +669,10 @@ const SeoView = {
               </button>
             </nav>
             <div class="k-vis-tools">
+              <button v-if="current === 'images' && fillable" type="button" class="k-vis-button" @click="fill">
+                <k-icon type="wand" />
+                <span>{{ $t('visibilizer.fill') }} ({{ fillable }})</span>
+              </button>
               <button v-if="current === 'links' && links.length" type="button" class="k-vis-button" :disabled="!!checking" @click="recheck">
                 <k-icon type="refresh" />
                 <span v-if="checking">{{ $t('visibilizer.checking', checking) }}</span>
@@ -718,14 +745,18 @@ const SeoView = {
               <span></span>
             </div>
             <div v-for="row in rows" :key="row.id" class="k-vis-row">
-              <span class="k-vis-dot" :data-level="row.level" :title="row.issues.map(issue).join(' · ') || $t('visibilizer.level.ok')"></span>
+              <span class="k-vis-dot" :data-level="levelOf(row)" :title="row.issues.map(issue).join(' · ') || $t('visibilizer.level.ok')"></span>
               <span class="k-vis-cell-thumb"><img v-if="row.thumb" :src="row.thumb" alt="" loading="lazy" /></span>
               <span class="k-vis-cell-page">
                 <k-link :to="row.panel" class="k-vis-link">{{ row.filename }}</k-link>
                 <k-link :to="row.parent.panel" class="k-vis-path">{{ row.parent.title }}</k-link>
               </span>
-              <span class="k-vis-cell-text" :data-level="row.altOk ? 'ok' : 'error'">
+              <span class="k-vis-cell-text" :data-level="issuesLevel(row.issues.filter(i => i.key.startsWith('alt_')))">
                 <span v-if="row.alt">{{ row.alt }}</span>
+                <template v-else-if="row.generated">
+                  <span class="k-vis-badge">{{ $t('visibilizer.source.auto') }}</span>
+                  <span class="k-vis-muted">{{ row.generated }}</span>
+                </template>
                 <span v-else class="k-vis-flag">{{ $t('visibilizer.issue.alt_missing') }}</span>
               </span>
               <span class="k-vis-cell-meta">

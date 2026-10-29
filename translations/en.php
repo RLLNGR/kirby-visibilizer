@@ -25,6 +25,12 @@ return [
     'visibilizer.count.links.error' => '{count} broken',
     'visibilizer.count.links.pending' => '{count} checking',
     'visibilizer.count.alts.ok'     => '{count} described',
+    'visibilizer.count.alts.warn' => "{count} generated",
+    'visibilizer.issue.alt_generated' => "Alt text generated from the template (empty field)",
+    'visibilizer.fill' => "Fill empty texts",
+    'visibilizer.fill.submit' => 'Fill',
+    'visibilizer.fill.confirm' => "Write the generated text into the alt field of {count} image(s)? Existing texts are left untouched, and each one stays editable.",
+    'visibilizer.fill.done' => "{count} alt text(s) saved",
     'visibilizer.count.alts.error'  => '{count} missing',
 
     'visibilizer.filter.all'        => 'All',
