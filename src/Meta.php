@@ -265,10 +265,10 @@ class Meta
         if ($this->model instanceof Page) {
             $custom = $this->field('seo_canonical');
             if ($custom) return $custom;
-            return $this->model->url();
+            return Url::page($this->model);
         }
 
-        return $this->kirby->site()->url();
+        return Url::public($this->kirby->site()->url());
     }
 
     // -------------------------------------------------------------------------
@@ -286,7 +286,7 @@ class Meta
         foreach ($this->kirby->languages() as $language) {
             $result[] = [
                 'hreflang' => $language->code(),
-                'url'      => $this->model->url($language->code()),
+                'url'      => Url::page($this->model, $language->code()),
             ];
         }
 
@@ -349,7 +349,52 @@ class Meta
             'robots'         => $this->robots(),
             'canonical'      => $this->canonical(),
             'hreflang'       => $this->hreflang(),
+            'schema'         => $this->schema(),
         ];
+    }
+
+    /**
+     * Données structurées Schema.org : WebPage (ou WebSite) + fil d'Ariane pour les pages intérieures.
+     */
+    public function schema(): array
+    {
+        $schema = [
+            '@context' => 'https://schema.org',
+            '@type'    => $this->model instanceof Page ? 'WebPage' : 'WebSite',
+            'name'     => $this->ogTitle(),
+            'url'      => $this->canonical(),
+        ];
+
+        if ($desc = $this->description()) {
+            $schema['description'] = $desc;
+        }
+
+        if ($img = $this->ogImage()) {
+            $schema['image'] = $img;
+        }
+
+        if ($this->model instanceof Page) {
+            $crumbs = [];
+            $pos    = 1;
+
+            foreach ($this->model->parents()->flip()->add($this->model) as $crumb) {
+                $crumbs[] = [
+                    '@type'    => 'ListItem',
+                    'position' => $pos++,
+                    'name'     => $crumb->title()->value(),
+                    'item'     => Url::page($crumb),
+                ];
+            }
+
+            if (count($crumbs) > 1) {
+                $schema['breadcrumb'] = [
+                    '@type'           => 'BreadcrumbList',
+                    'itemListElement' => $crumbs,
+                ];
+            }
+        }
+
+        return $schema;
     }
 
     // -------------------------------------------------------------------------

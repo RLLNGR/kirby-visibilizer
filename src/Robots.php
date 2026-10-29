@@ -19,7 +19,7 @@ class Robots
     {
         $lines    = [];
         $disallow = $this->options['disallow'] ?? ['/panel/', '/api/'];
-        $base     = rtrim($this->kirby->site()->url(), '/');
+        $base     = Url::site();
 
         $lines[] = 'User-agent: *';
         $lines[] = 'Allow: /';

@@ -22,8 +22,7 @@ class LlmGenerator
             'instructions' => 'llmsinstructions',
         ];
 
-        $override        = $kirby->option('rllngr.kirby-visibilizer.siteUrl');
-        $this->siteUrl   = rtrim($override ?? $kirby->site()->url(), '/');
+        $this->siteUrl   = Url::site();
     }
 
     // -------------------------------------------------------------------------
@@ -285,24 +284,7 @@ class LlmGenerator
             return (string) ($config['itemUrl'])($page);
         }
 
-        $mode = $this->kirby->option('rllngr.kirby-visibilizer.mode', 'classic');
-
-        if ($mode === 'headless') {
-            if ($page->hasMethod('frontendUrl')) {
-                return $page->frontendUrl();
-            }
-            $kirbyBase = rtrim($this->kirby->site()->url(), '/');
-            $path      = substr($page->url(), strlen($kirbyBase));
-            $url       = $this->siteUrl . $path;
-        } else {
-            $url = $page->url();
-        }
-
-        if ($this->kirby->option('rllngr.kirby-visibilizer.trailingSlash', false)) {
-            $url = rtrim($url, '/') . '/';
-        }
-
-        return $url;
+        return Url::page($page);
     }
 
     protected function resolveDescription(Page $page, array $config, bool $full): string

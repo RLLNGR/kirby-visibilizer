@@ -710,6 +710,27 @@
   padding-top: 1.5rem;
   font-family: var(--font-sans);
 }
+.k-vis-settings-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+.k-vis-settings-preview {
+  position: sticky;
+  top: 1rem;
+}
+.k-vis-settings-group {
+  margin-top: 2.5rem;
+}
+@container (max-width: 660px) {
+  .k-vis-settings-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .k-vis-settings-preview {
+    position: static;
+  }
+}
 .k-vis-settings-bar {
   display: flex;
   flex-wrap: wrap;

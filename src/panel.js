@@ -20,6 +20,10 @@ const SeoPreview = {
   props: {
     label:  { type: [String, Object], default: 'SEO Preview' },
     parent: String,
+    // Hors d'une vue de page (onglet réglages) : valeurs et contexte fournis par le parent
+    liveValues:  Object,
+    liveContext: Object,
+    initialTab:  { type: String, default: 'google' },
   },
 
   // -----------------------------------------------------------------------
@@ -28,8 +32,8 @@ const SeoPreview = {
 
   data() {
     return {
-      tab: 'google',
-      ctx: {
+      tab: this.initialTab,
+      ctx: this.liveContext || {
         siteTitle: '',
         pageTitle: '',
         pageUrl:   '',
@@ -53,6 +57,7 @@ const SeoPreview = {
 
     // Live field values (includes unsaved edits)
     values() {
+      if (this.liveValues) return this.liveValues;
       try {
         // Kirby 5
         if (this.$panel?.content?.version) {
@@ -272,6 +277,7 @@ const SeoPreview = {
   // -----------------------------------------------------------------------
 
   async created() {
+    if (this.liveContext) return;
     await this.loadContext();
   },
 
@@ -506,6 +512,32 @@ const SeoView = {
       }
       return fields
     },
+    // Un groupe par titre ; le premier (valeurs par défaut) a l'aperçu à sa gauche, comme l'onglet SEO des pages
+    settingsGroups() {
+      const groups = []
+      for (const [name, field] of Object.entries(this.settingsFields)) {
+        if (field.type === 'headline' || !groups.length) groups.push({ key: name, fields: {} })
+        groups[groups.length - 1].fields[name] = field
+      }
+      return groups
+    },
+    previewContext() {
+      const c = this.settings.context
+      return {
+        siteTitle: c.siteTitle,
+        pageTitle: c.siteTitle,
+        pageUrl: c.siteUrl,
+        siteUrl: c.siteUrl,
+        separator: c.separator,
+        isHome: true,
+        homeTitle: c.siteTitle,
+        siteDescription: '',
+        siteOgImage: false,
+        siteOgImageUrl: null,
+        autoImageUrl: null,
+        fallbacks: {},
+      }
+    },
     settingsChanged() {
       return JSON.stringify(this.form) !== JSON.stringify(this.settings.values)
     },
@@ -714,7 +746,19 @@ const SeoView = {
 
         <template v-if="current === 'settings'">
           <section class="k-vis-block k-vis-settings">
-            <k-fieldset :fields="settingsFields" :value="form" :novalidate="true" @input="form = $event" />
+            <template v-for="(group, i) in settingsGroups">
+              <div v-if="i === 0" :key="group.key" class="k-vis-settings-split">
+                <k-visibilizer-preview
+                  class="k-vis-settings-preview"
+                  :label="$t('visibilizer.settings.preview')"
+                  :live-values="form"
+                  :live-context="previewContext"
+                  initial-tab="social"
+                />
+                <k-fieldset :fields="group.fields" :value="form" :novalidate="true" @input="form = $event" />
+              </div>
+              <k-fieldset v-else :key="group.key" class="k-vis-settings-group" :fields="group.fields" :value="form" :novalidate="true" @input="form = $event" />
+            </template>
             <div class="k-vis-settings-bar">
               <span v-if="!settings.editable" class="k-vis-muted">{{ $t('visibilizer.settings.readonly') }}</span>
               <span v-else-if="settingsChanged" class="k-vis-muted">{{ $t('visibilizer.settings.unsaved') }}</span>
@@ -908,6 +952,7 @@ panel.plugin('rllngr/kirby-visibilizer', {
     'seo-preview': SeoPreview,
   },
   components: {
+    'k-visibilizer-preview': SeoPreview,
     'k-visibilizer-seo-view': SeoView,
   },
 })

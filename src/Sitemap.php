@@ -35,34 +35,51 @@ class Sitemap
         return $content;
     }
 
+    /**
+     * Entrées du sitemap (pages publiées, hors exclusions et noindex), avec les adresses publiques.
+     * @return array<int, array{loc: string, lastmod: string, alternates: array}>
+     */
+    public function entries(): array
+    {
+        $entries = [];
+
+        foreach ($this->kirby->site()->index(drafts: false) as $page) {
+            if ($this->isExcluded($page)) continue;
+
+            $alternates = [];
+            if ($this->kirby->multilang()) {
+                foreach ($this->kirby->languages() as $lang) {
+                    $alternates[] = ['hreflang' => $lang->code(), 'href' => Url::page($page, $lang->code())];
+                }
+            }
+
+            $entries[] = [
+                'loc'        => Url::page($page),
+                'lastmod'    => $page->modified('Y-m-d') ?: date('Y-m-d'),
+                'alternates' => $alternates,
+            ];
+        }
+
+        return $entries;
+    }
+
     protected function build(): string
     {
         $multilang = $this->kirby->multilang();
         $lines     = [];
 
         $lines[] = '<?xml version="1.0" encoding="UTF-8"?>';
+        $lines[] = $multilang
+            ? '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">'
+            : '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
 
-        if ($multilang) {
-            $lines[] = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">';
-        } else {
-            $lines[] = '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
-        }
-
-        foreach ($this->kirby->site()->index(drafts: false) as $page) {
-            if ($this->isExcluded($page)) continue;
-
-            $modified = $page->modified('Y-m-d') ?: date('Y-m-d');
-            $loc      = htmlspecialchars($page->url(), ENT_XML1);
-
+        foreach ($this->entries() as $entry) {
             $lines[] = '  <url>';
-            $lines[] = '    <loc>' . $loc . '</loc>';
-            $lines[] = '    <lastmod>' . $modified . '</lastmod>';
+            $lines[] = '    <loc>' . htmlspecialchars($entry['loc'], ENT_XML1) . '</loc>';
+            $lines[] = '    <lastmod>' . $entry['lastmod'] . '</lastmod>';
 
-            if ($multilang) {
-                foreach ($this->kirby->languages() as $lang) {
-                    $altUrl = htmlspecialchars($page->url($lang->code()), ENT_XML1);
-                    $lines[] = '    <xhtml:link rel="alternate" hreflang="' . $lang->code() . '" href="' . $altUrl . '"/>';
-                }
+            foreach ($entry['alternates'] as $alt) {
+                $lines[] = '    <xhtml:link rel="alternate" hreflang="' . $alt['hreflang'] . '" href="' . htmlspecialchars($alt['href'], ENT_XML1) . '"/>';
             }
 
             $lines[] = '  </url>';

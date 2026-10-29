@@ -8,6 +8,7 @@ return [
     'visibilizer.tab.images'        => 'Images',
     'visibilizer.tab.links'         => 'Links',
     'visibilizer.tab.settings' => "Settings",
+    'visibilizer.settings.preview' => 'Preview (home page)',
     'visibilizer.settings.save' => "Save",
     'visibilizer.settings.saving' => "Saving…",
     'visibilizer.settings.reset' => "Discard",

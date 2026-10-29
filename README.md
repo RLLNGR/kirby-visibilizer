@@ -237,10 +237,58 @@ Each section accepts:
 
 ## Headless mode
 
-Set `'mode' => 'headless'` to disable file routes and expose JSON endpoints instead:
+For a decoupled front end (Nuxt, Next, Astro…), set the mode and the public address of the front end:
+
+```php
+'rllngr.kirby-visibilizer' => [
+    'mode'          => 'headless',
+    'siteUrl'       => 'https://example.com', // the front end, not Kirby
+    'trailingSlash' => false,                  // match the front end's routes
+],
+```
+
+`siteUrl` replaces Kirby's address in everything that is output: canonical, `og:url`, hreflang, JSON-LD, sitemap, robots.txt, llms.txt, and the page links of the Panel (preview, SEO view). A page can provide its own address with a `frontendUrl()` page method. Files (share images) keep Kirby's address, since Kirby serves them — proxy them on the front end if Kirby is not public.
+
+The file routes (`sitemap.xml`, `robots.txt`, `llms*.txt`) are disabled and the data is exposed instead:
+
+### KQL
+
+`page.seo` and `site.seo` return the whole computed `<head>`, and `file.altText` the alt text with its template fallback. They are allowed in KQL out of the box (`@kql-allowed`), so the SEO data comes with the page in a single query:
+
+```js
+{
+  query: 'page("projects/moncler")',
+  select: {
+    title: true,
+    seo: true, // title, description, og_title, og_description, og_image, og_image_alt,
+               // og_image_size {width, height}, og_type, twitter_card, twitter_image,
+               // robots, canonical, hreflang [{hreflang, url}], schema (JSON-LD)
+    cover: { query: 'page.cover.toFile', select: { url: true, altText: true } },
+  },
+}
+```
+
+### Endpoints
 
 | Endpoint | Returns |
 |---|---|
+| `/__seo__?page=projects/moncler` | `{ result: seo }` for the page — `404` with `{ result: null }` if it does not exist or is a draft |
+| `/__seo__` | `{ result: seo }` for the site |
+| `/__seo-sitemap__` | `{ result: [{ loc, lastmod, alternates: [{ hreflang, href }] }] }` — published pages, exclusions and noindex removed |
+| `/__robots__` | `{ result: { text } }` — robots.txt to serve as is |
+| `/__llms__` · `/__llms-full__` | llms.txt data as JSON |
+| `/__llms-sitemap__` | `{ result: { xml } }` |
+
+These endpoints are public (it is public data), whatever the KQL authentication.
+
+### On the front end
+
+- Fill the `<head>` from `seo` (e.g. Nuxt's `useSeoMeta` / `useHead`), with `schema` in a `<script type="application/ld+json">`.
+- Serve `/sitemap.xml`, `/robots.txt`, `/llms.txt` (and `/llms-sitemap.xml`) from server routes built on the endpoints above.
+- Use `altText` instead of `alt` in image queries.
+- In the Panel, everything works as in classic mode: SEO tabs, live preview, SEO view and its settings.
+
+---|---|
 | `/__seo__?page=about` | Meta array for the given page ID |
 | `/__seo__` | Meta array for the site |
 | `/__llms__` | llms.txt data as JSON |

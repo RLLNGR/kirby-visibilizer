@@ -66,7 +66,7 @@ class Audit
                 'id'          => $page->id(),
                 'title'       => $page->title()->value(),
                 'path'        => '/' . $page->uri(),
-                'url'         => $page->url(),
+                'url'         => Url::page($page),
                 'panel'       => $page->panel()->url(),
                 'status'      => $page->status(),
                 'metaTitle'   => ['value' => $meta->title(), 'source' => $sources['title'], 'field' => $sources['titleField']],
@@ -343,22 +343,27 @@ class Audit
             return $this->pageStatus($model, $label);
         }
 
-        $site = parse_url($this->kirby->site()->url());
         $url  = parse_url($href);
 
         if ($url === false) {
             return ['internal' => true, 'label' => $href, 'level' => 'error', 'code' => 0, 'key' => 'link_invalid'];
         }
 
+        // Le site lui-même : l'adresse de Kirby ou, en headless, celle du front (siteUrl)
         $isAbsolute = isset($url['host']);
-        $isSameHost = $isAbsolute && strcasecmp($url['host'], $site['host'] ?? '') === 0
-            && ($url['port'] ?? null) === ($site['port'] ?? null);
+        $site       = null;
+        foreach (Url::hosts() as $host) {
+            if (!$isAbsolute || (strtolower($url['host']) === $host['host'] && ($url['port'] ?? null) === $host['port'])) {
+                $site = $host;
+                break;
+            }
+        }
 
-        if ($isAbsolute && !$isSameHost) return null;
+        if ($isAbsolute && !$site) return null;
         if (isset($url['scheme']) && !$isAbsolute) return null; // autre protocole
 
         // Chemin relatif à la racine du site (sous-dossier éventuel)
-        $base = rtrim($site['path'] ?? '', '/');
+        $base = $site['path'] ?? '';
         $path = $url['path'] ?? '/';
         if ($base && str_starts_with($path, $base)) $path = substr($path, strlen($base));
         $path  = trim($path, '/');

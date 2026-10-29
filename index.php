@@ -11,6 +11,7 @@ use Rllngr\KirbyVisibilizer\LlmGenerator;
 use Rllngr\KirbyVisibilizer\Meta;
 use Rllngr\KirbyVisibilizer\Robots;
 use Rllngr\KirbyVisibilizer\Settings;
+use Rllngr\KirbyVisibilizer\Url;
 use Rllngr\KirbyVisibilizer\Sitemap;
 
 load([
@@ -21,6 +22,7 @@ load([
     'Rllngr\\KirbyVisibilizer\\Audit'        => __DIR__ . '/src/Audit.php',
     'Rllngr\\KirbyVisibilizer\\Alt'          => __DIR__ . '/src/Alt.php',
     'Rllngr\\KirbyVisibilizer\\Settings'     => __DIR__ . '/src/Settings.php',
+    'Rllngr\\KirbyVisibilizer\\Url'          => __DIR__ . '/src/Url.php',
     'Rllngr\\KirbyVisibilizer\\LinkChecker'  => __DIR__ . '/src/LinkChecker.php',
 ]);
 
@@ -70,8 +72,24 @@ App::plugin('rllngr/kirby-visibilizer', [
 
     // $image->altText() : le champ alt, sinon le modèle `alt.template(s)`
     'fileMethods' => [
+        /** @kql-allowed */
         'altText' => function () {
             return new Field($this, 'altText', Alt::text($this));
+        },
+    ],
+
+    // $page->seo() / $site->seo() : tout le <head> calculé (titre, description, image, robots, canonical, hreflang, schema),
+    // pour un front headless — utilisable tel quel dans une requête KQL (`page.seo`)
+    'pageMethods' => [
+        /** @kql-allowed */
+        'seo' => function () {
+            return (new Meta(kirby(), $this))->toArray();
+        },
+    ],
+    'siteMethods' => [
+        /** @kql-allowed */
+        'seo' => function () {
+            return (new Meta(kirby(), $this))->toArray();
         },
     ],
 
@@ -164,8 +182,8 @@ App::plugin('rllngr/kirby-visibilizer', [
                         return [
                             'siteTitle' => $site->title()->value(),
                             'pageTitle' => $site->title()->value(),
-                            'pageUrl'   => $site->url(),
-                            'siteUrl'   => $site->url(),
+                            'pageUrl'   => Url::site(),
+                            'siteUrl'   => Url::site(),
                             'separator' => $separator,
                             'isHome'    => true,
                             // Site values come from the edited fields themselves
@@ -182,8 +200,8 @@ App::plugin('rllngr/kirby-visibilizer', [
                     return [
                         'siteTitle' => $site->title()->value(),
                         'pageTitle' => $page->title()->value(),
-                        'pageUrl'   => $page->url(),
-                        'siteUrl'   => $site->url(),
+                        'pageUrl'   => Url::page($page),
+                        'siteUrl'   => Url::site(),
                         'separator' => $separator,
                         'isHome'    => $page->isHomePage(),
                         'homeTitle' => $homeTitle,
@@ -381,11 +399,44 @@ App::plugin('rllngr/kirby-visibilizer', [
                 'pattern' => '__seo__',
                 'method'  => 'GET',
                 'action'  => function () use ($kirby) {
-                    $id    = $kirby->request()->get('page', '');
-                    $model = $id ? ($kirby->page($id) ?? $kirby->site()) : $kirby->site();
-                    $meta  = new Meta($kirby, $model);
+                    $id    = trim($kirby->request()->get('page', ''), '/');
+                    $model = $id ? $kirby->page($id) : $kirby->site();
                     header('Content-Type: application/json; charset=utf-8');
-                    die(json_encode(['result' => $meta->toArray()]));
+                    // Page inconnue (ou brouillon) : 404 plutôt que les méta du site, pour que le front le sache
+                    if (!$model) {
+                        http_response_code(404);
+                        die(json_encode(['result' => null]));
+                    }
+                    die(json_encode(['result' => (new Meta($kirby, $model))->toArray()], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                },
+            ];
+
+            // sitemap.xml : entrées prêtes pour le générateur du front (adresses publiques, hors noindex)
+            $routes[] = [
+                'pattern' => '__seo-sitemap__',
+                'method'  => 'GET',
+                'action'  => function () use ($kirby) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    die(json_encode(['result' => (new Sitemap($kirby))->entries()], JSON_UNESCAPED_SLASHES));
+                },
+            ];
+
+            // robots.txt et llms-sitemap.xml : le texte à servir tel quel
+            $routes[] = [
+                'pattern' => '__robots__',
+                'method'  => 'GET',
+                'action'  => function () use ($kirby) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    die(json_encode(['result' => ['text' => (new Robots($kirby))->generate()]], JSON_UNESCAPED_SLASHES));
+                },
+            ];
+
+            $routes[] = [
+                'pattern' => '__llms-sitemap__',
+                'method'  => 'GET',
+                'action'  => function () use ($kirby) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    die(json_encode(['result' => ['xml' => (new LlmGenerator($kirby))->generateSitemap()]], JSON_UNESCAPED_SLASHES));
                 },
             ];
 

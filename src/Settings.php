@@ -48,6 +48,12 @@ class Settings
             'values'   => array_intersect_key($form->toFormValues(), array_flip(static::keys())),
             'editable' => $kirby->site()->permissions()->can('update'),
             'config'   => static::config($kirby),
+            // Contexte de l'aperçu (page d'accueil)
+            'context'  => [
+                'siteTitle' => $kirby->site()->title()->value(),
+                'siteUrl'   => Url::site(),
+                'separator' => $kirby->option('rllngr.kirby-visibilizer.titleSeparator', ' — '),
+            ],
         ];
     }
 

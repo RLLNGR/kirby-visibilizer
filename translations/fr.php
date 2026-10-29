@@ -8,6 +8,7 @@ return [
     'visibilizer.tab.images'        => 'Images',
     'visibilizer.tab.links'         => 'Liens',
     'visibilizer.tab.settings' => "Réglages",
+    'visibilizer.settings.preview' => 'Aperçu (page d’accueil)',
     'visibilizer.settings.save' => "Enregistrer",
     'visibilizer.settings.saving' => "Enregistrement…",
     'visibilizer.settings.reset' => "Annuler",
