@@ -11,6 +11,34 @@ class AuditTest extends TestCase
         return ['slug' => 'projet', 'template' => 'default', 'content' => ['title' => 'Projet'] + $content];
     }
 
+    public function testSummaryScoresEachCardAndWeighsTheTotal(): void
+    {
+        $audit = new Audit($this->app(['site' => ['children' => [
+            $this->page([
+                'seo_title' => 'Un titre de page assez long pour être optimal',
+                'seo_description' => 'Une description assez longue pour se situer dans la bonne fourchette de longueur.',
+                'text' => '<a href="/absente">x</a> <a href="https://ailleurs.fr/">y</a>',
+            ]),
+        ]]]));
+
+        $summary = $audit->summary();
+
+        $this->assertSame(['ok' => 0, 'warn' => 0, 'error' => 1, 'pending' => 1, 'score' => 0], $summary['cards']['links']);
+        $this->assertNull($summary['cards']['alts']['score']);
+        $this->assertSame(100, $summary['cards']['descriptions']['score']);
+        $this->assertSame(1, $summary['toFix']);
+        // Liens à 0 (poids 20) et titres + descriptions à 100 (poids 60) ; images sans objet
+        $this->assertSame(75, $summary['score']);
+    }
+
+    public function testSummaryWithNothingToJudgeHasNoScore(): void
+    {
+        $summary = (new Audit($this->app()))->summary();
+
+        $this->assertNull($summary['score']);
+        $this->assertSame(0, $summary['toFix']);
+    }
+
     public function testExtractsEveryWayOfWritingALink(): void
     {
         $audit = new Audit($this->app());

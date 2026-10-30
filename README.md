@@ -125,6 +125,7 @@ The `seo-preview` section shows a live preview panel with three tabs (Google SER
 The Panel gets an **SEO** entry in its menu (`/panel/seo`), styled like the [moniter](https://github.com/rllngr/kirby-moniter) Audience view (cream, ink bars, coloured cards; follows the Panel's light / dark theme).
 
 - **Cards** — a score for titles, descriptions, alt texts and links, with optimal / acceptable / to-fix counts. Clicking a card opens the matching tab, filtered on what needs fixing.
+- **Score for other tools** — `(new Audit(kirby()))->summary()` returns these cards and a global score (titles 30 %, descriptions 30 %, alt texts 20 %, links 20 %, empty cards left out), with default values counted as in the view. [kirby-moniter](https://github.com/rllngr/kirby-moniter) serves it to the Moniter dashboard.
 - **Count default values** — on (default): titles and descriptions taken from elsewhere (page title, a template field, the site) are judged on what they produce in `<head>`. Off: anything not filled in the SEO tab is flagged. The choice is remembered in the browser and also applies to the live preview.
 - **Pages** — every page whose blueprint has the SEO fields: meta title and description as rendered in `<head>` (with a `default` / `site` badge when inherited), share image, indexing. Click a row to see its issues (length, duplicates, inherited values, missing image).
 - **Images** — alt text and weight of every image on those pages.

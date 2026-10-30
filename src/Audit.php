@@ -20,6 +20,8 @@ class Audit
     public const TITLE       = ['min' => 15, 'ideal' => 30, 'max' => 60, 'limit' => 70];
     public const DESCRIPTION = ['min' => 30, 'ideal' => 70, 'max' => 160, 'limit' => 200];
     public const HEAVY_IMAGE = 1024 * 1024;
+    // Poids des cartes dans la note globale
+    public const WEIGHTS = ['titles' => 30, 'descriptions' => 30, 'alts' => 20, 'links' => 20];
 
     protected App $kirby;
     protected ?Pages $pages = null;
@@ -194,7 +196,7 @@ class Audit
         return $files;
     }
 
-    public function imageReport(): array
+    public function imageReport(bool $thumbs = true): array
     {
         $rows = [];
 
@@ -222,7 +224,7 @@ class Audit
             $rows[] = [
                 'id'       => $file->id(),
                 'filename' => $file->filename(),
-                'thumb'    => $this->thumb($file),
+                'thumb'    => $thumbs ? $this->thumb($file) : null,
                 'url'      => $file->url(),
                 'panel'    => $file->panel()->url(),
                 'parent'   => [
@@ -400,6 +402,62 @@ class Audit
         }
 
         return ['internal' => true, 'label' => $label, 'level' => 'ok', 'code' => 200];
+    }
+
+    // -------------------------------------------------------------------------
+    // Note
+    // -------------------------------------------------------------------------
+
+    /**
+     * Mêmes règles que les cartes de la vue SEO (src/panel.js), réglage « compter les valeurs par défaut » activé :
+     * les valeurs de repli ne pèsent pas, et un lien externe pas encore vérifié n'est pas jugé.
+     * Une carte sans rien à juger sort de la note globale.
+     *
+     * @param int $checkLinks nombre de liens externes pas encore vérifiés à vérifier maintenant
+     */
+    public function summary(int $checkLinks = 0): array
+    {
+        $links = $this->linkReport();
+
+        if ($checkLinks > 0) {
+            $pending = array_column(array_filter($links, fn ($l) => $l['result'] === null), 'href');
+            $results = (new LinkChecker($this->kirby))->check(array_slice($pending, 0, $checkLinks));
+            foreach ($links as &$link) {
+                $link['result'] ??= $results[$link['href']] ?? null;
+            }
+            unset($link);
+        }
+
+        $pages  = $this->pageReport();
+        $counts = fn (array $issues) => $this->worst(array_column(array_filter($issues, fn ($i) => empty($i['fallback'])), 'level'));
+        $levels = [
+            'titles'       => array_map(fn ($p) => $counts($p['checks']['title']['issues']), $pages),
+            'descriptions' => array_map(fn ($p) => $counts($p['checks']['description']['issues']), $pages),
+            'alts'         => array_map(fn ($i) => $counts(array_filter($i['issues'], fn ($x) => str_starts_with($x['key'], 'alt_'))), $this->imageReport(false)),
+            'links'        => array_map(fn ($l) => $l['result']['level'] ?? null, $links),
+        ];
+
+        $cards = [];
+        $total = 0;
+        $weight = 0;
+        $toFix = 0;
+
+        foreach ($levels as $key => $list) {
+            $tally = array_count_values(array_filter($list));
+            $card  = ['ok' => $tally['ok'] ?? 0, 'warn' => $tally['warn'] ?? 0, 'error' => $tally['error'] ?? 0];
+            $done  = array_sum($card);
+            $card['pending'] = count($list) - $done;
+            $card['score']   = $done ? (int) round(($card['ok'] + $card['warn'] * 0.5) / $done * 100) : null;
+            $cards[$key] = $card;
+            $toFix += $card['error'];
+
+            if ($card['score'] !== null) {
+                $total  += $card['score'] * self::WEIGHTS[$key];
+                $weight += self::WEIGHTS[$key];
+            }
+        }
+
+        return ['score' => $weight ? (int) round($total / $weight) : null, 'toFix' => $toFix, 'cards' => $cards];
     }
 
     // -------------------------------------------------------------------------
