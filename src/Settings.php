@@ -14,7 +14,15 @@ class Settings
 {
     public static function fields(): array
     {
-        return Yaml::read(dirname(__DIR__) . '/blueprints/settings.yml');
+        $fields = Yaml::read(dirname(__DIR__) . '/blueprints/settings.yml');
+
+        // Un modèle dans config.php l'emporte : le champ ne ferait rien
+        $alt = kirby()->option('rllngr.kirby-visibilizer.alt', []);
+        if (!empty($alt['template']) || !empty($alt['templates'])) {
+            $fields['alt_template']['disabled'] = true;
+        }
+
+        return $fields;
     }
 
     /** Champs qui portent une valeur (les titres de groupe n'en ont pas) */

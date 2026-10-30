@@ -18,7 +18,8 @@ Handles everything that makes a Kirby site visible — to search engines **and**
 ## Requirements
 
 - Kirby 5
-- PHP 8.1+
+- PHP 8.2+
+- The `curl` and `gd` extensions (link checks, site icons)
 
 ## Installation
 
@@ -26,30 +27,88 @@ Handles everything that makes a Kirby site visible — to search engines **and**
 composer require rllngr/kirby-visibilizer
 ```
 
-## Usage
+Composer asks once to allow `getkirby/composer-installer`, which puts the plugin in `site/plugins/kirby-visibilizer`. Without Composer, copy the folder there: it needs nothing else.
 
-Add both snippets inside your `<head>` layout:
+## Quick start
+
+Both kinds of site start the same way. Add a tab to the blueprints of the pages you want to manage:
+
+```yaml
+# site/blueprints/tabs/seo.yml
+label: SEO
+icon: search
+columns:
+  preview:
+    width: 1/2
+    sections:
+      seo_preview:
+        extends: sections/seo-preview
+  fields:
+    width: 1/2
+    sections:
+      seo:
+        extends: sections/seo
+```
+
+```yaml
+# site/blueprints/pages/default.yml (and each page blueprint)
+tabs:
+  content: ...
+  seo: tabs/seo
+```
+
+A blueprint made of plain `sections:` can take the two sections directly. A page without these fields still gets its tags from the cascade, but the SEO view only lists pages that have them, as soon as one page does.
+
+Then open `/panel/seo?tab=settings` for the site-wide defaults: home page title, default description and share image, default image alt text, site icon, llms.txt texts. Nothing to add to `site.yml`.
+
+### Classic site
+
+Add the snippets inside your `<head>` and use the alt text in your templates:
 
 ```php
 <?php snippet('seo/head') ?>
 <?php snippet('seo/jsonld') ?>
 ```
 
-Add the panel sections to your page blueprints:
-
-```yaml
-# blueprints/pages/article.yml (or any page blueprint)
-sections:
-  seo_preview:
-    extends: sections/seo-preview
-  seo:
-    extends: sections/seo
+```php
+<img src="<?= $image->url() ?>" alt="<?= $image->altText()->esc() ?>">
 ```
 
-Site-wide defaults (home page title, default description and share image, llms.txt description and instructions) are edited in the **Settings** tab of the SEO view (`/panel/seo?tab=settings`) — nothing to add to `site.yml`. They are stored in the site content with the same field names, so templates, KQL and the cascade read them as usual. If you'd rather edit them on the Site page, the sections still work there:
+Remove your own `<title>`, description, Open Graph and favicon tags: `seo/head` writes them. `sitemap.xml`, `robots.txt`, `llms.txt`, `llms-full.txt` and the icons are served at the root. A static file of the same name in the root wins over the route, so delete any old `robots.txt` or `favicon.ico`.
+
+### Headless site
+
+Tell the plugin where the public site is. Everything else is on the front end: see [Headless mode](#headless-mode).
+
+```php
+// site/config/config.php
+'rllngr.kirby-visibilizer' => [
+    'mode'    => 'headless',
+    'siteUrl' => env('FRONTEND_URL'), // the front end, not Kirby
+],
+```
+
+1. Query `seo: true` on each page and fill the `<head>` from it.
+2. Query `altText` instead of `alt` on images. A front end that reads `file.alt` gets none of the default texts, while the SEO view still counts them as described.
+3. Serve `/sitemap.xml`, `/robots.txt`, `/llms.txt` and the icons from the endpoints.
+4. For the Panel's preview, let the Panel frame the front end: `frame-ancestors https://panel.example.com` in its Content-Security-Policy, and no `X-Frame-Options`. The preview shows the published version unless the front end reads Kirby's `_version` and `_token` parameters.
+
+### Check the install
+
+- `/panel/seo` opens and its cards show scores.
+- **Classic:** the page source has the `<title>`, `og:*` and JSON-LD tags, and `/sitemap.xml` answers.
+- **Headless:** `/__seo__?page=<id>` answers on Kirby, and canonical URLs use the front end's address.
+- The Settings tab has a section of config values: check the mode and address there.
+- A page that is not `listed` gets `noindex` and stays out of the sitemap: that is expected.
+
+If the site sets `panel.menu`, add `'visibilizer'` to the list or the SEO entry will not show.
+
+### On the Site page (optional)
+
+Defaults can also be edited on the Site page, with the same field names:
 
 ```yaml
-# site.yml (optional)
+# site.yml
 sections:
   seo:
     extends: sections/seo
@@ -58,8 +117,6 @@ sections:
 ```
 
 The `seo-preview` section shows a live preview panel with three tabs (Google SERP, OG/social card, Twitter/X card) and a checklist of SEO issues. It reads field values in real time — changes are reflected before saving.
-
-That's it. `sitemap.xml`, `robots.txt`, `llms.txt` and `llms-full.txt` are served automatically.
 
 ---
 
@@ -71,10 +128,10 @@ The Panel gets an **SEO** entry in its menu (`/panel/seo`), styled like the [mon
 - **Count default values** — on (default): titles and descriptions taken from elsewhere (page title, a template field, the site) are judged on what they produce in `<head>`. Off: anything not filled in the SEO tab is flagged. The choice is remembered in the browser and also applies to the live preview.
 - **Pages** — every page whose blueprint has the SEO fields: meta title and description as rendered in `<head>` (with a `default` / `site` badge when inherited), share image, indexing. Click a row to see its issues (length, duplicates, inherited values, missing image).
 - **Images** — alt text and weight of every image on those pages.
-- **Site icon** — in the Settings tab, a square PNG (≥ 512 px, plus an optional SVG), a short name and two colours. The plugin generates `favicon.ico` (16/32/48), `favicon-96x96.png`, `favicon.svg`, `apple-touch-icon.png` (180, on the background colour), `web-app-manifest-192x192.png` / `-512x512.png`, a maskable 512 icon and `site.webmanifest`, serves them at the site root and writes the `<link>` / `theme-color` tags from `seo/head`. A static file of the same name at the root wins over the plugin's route: the Settings tab flags it. The icon also shows in the Google, social and X previews.
+- **Site icon** — in the Settings tab, a square PNG (≥ 512 px, `icon_png`), an optional SVG (`icon_svg`; an existing `favicon` field is read as a fallback), a short name and two colours. The plugin generates `favicon.ico` (16/32/48), `favicon-96x96.png`, `favicon.svg`, `apple-touch-icon.png` (180, on the background colour), `web-app-manifest-192x192.png` / `-512x512.png`, a maskable 512 icon and `site.webmanifest`, serves them at the site root and writes the `<link>` / `theme-color` tags from `seo/head`. A static file of the same name at the root wins over the plugin's route: the Settings tab flags it. The icon also shows in the Google, social and X previews.
 - **Site files** — the site's files with what uses each one (icon, share image, a page) or an *unused* badge, and an upload button.
 - **Settings** — site-wide defaults, saved straight into the site content (no draft / publish step), in the Panel's current language; requires the permission to update the site. Below them, what is set in `config.php` (fallbacks, alt templates, separator…) is shown read-only.
-- **Links** — links found in the content (HTML, Markdown, KirbyText, link fields, `page://` / `file://` UUIDs) with the pages they come from. Internal links are resolved by Kirby directly (no HTTP request); external links are checked from the server in small batches and cached for a week. *Recheck all* forces a new check.
+- **Links** — links found in the content of every language (HTML, Markdown, KirbyText, link fields, `page://` / `file://` UUIDs) with the pages they come from. Internal links are resolved by Kirby directly (no HTTP request); external links are checked from the server in small batches and cached for a week. *Recheck all* forces a new check. A redirect that only changes the protocol, `www` or a trailing slash counts as OK. Only `http` and `https` are requested, never an address on the internal network, so the content cannot be used to probe the server. Sites that block robots (LinkedIn, some CDNs) are marked to check by hand.
 
 ```php
 'rllngr.kirby-visibilizer' => [
@@ -94,6 +151,7 @@ Labels in French and English. The Panel code lives in `src/panel.js` (ordinary `
 ```bash
 npm install
 npm run build   # scripts/build-panel.mjs → index.js, commit both
+composer install && composer test   # PHP tests (links, addresses, fallbacks, alt texts)
 ```
 
 ---
@@ -196,6 +254,8 @@ Use it in your templates with `$image->altText()`: the alt field if filled in, o
 <img src="<?= $image->url() ?>" alt="<?= $image->altText()->esc() ?>">
 ```
 
+Without a template in `config.php`, the *Default image alt text* field of the Settings tab is used instead. It is written from the Panel, so it only reads content fields (`{{ page.client }}`, `{{ file.credit }}`, `{{ site.title }}`), never Kirby queries: anything else in braces is dropped.
+
 In the SEO view, generated texts are shown with an `auto` badge, and *Fill empty texts* writes them into the empty alt fields (existing texts are never overwritten) so editors can refine them.
 
 ---
@@ -289,15 +349,10 @@ These endpoints are public (it is public data), whatever the KQL authentication.
 
 - Fill the `<head>` from `seo` (e.g. Nuxt's `useSeoMeta` / `useHead`), with `schema` in a `<script type="application/ld+json">`.
 - Serve `/sitemap.xml`, `/robots.txt`, `/llms.txt` (and `/llms-sitemap.xml`) from server routes built on the endpoints above.
-- Use `altText` instead of `alt` in image queries.
+- Use `altText` instead of `alt` in image queries. If the front end builds its own alt text, give the plugin the same template in `config.php`, so the SEO view judges what the site really says.
 - Write `site.icons.tags` in the `<head>` and proxy `/favicon.ico`, `/favicon.svg`, `/favicon-96x96.png`, `/apple-touch-icon.png`, `/web-app-*.png` and `/site.webmanifest` to `/__icons__/<name>`.
 - In the Panel, everything works as in classic mode: SEO tabs, live preview, SEO view and its settings.
-
----|---|
-| `/__seo__?page=about` | Meta array for the given page ID |
-| `/__seo__` | Meta array for the site |
-| `/__llms__` | llms.txt data as JSON |
-| `/__llms-full__` | llms-full.txt data as JSON |
+- With [kirby-headless](https://github.com/johannschopplich/kirby-headless), a page's `frontendUrl()` is picked up automatically: set `headless.panel.frontendUrl` to the same address as `siteUrl`, and use `options: { preview: "{{ page.frontendUrl }}" }` in page blueprints.
 
 ---
 

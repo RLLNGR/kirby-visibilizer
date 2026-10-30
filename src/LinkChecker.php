@@ -6,7 +6,8 @@ use Kirby\Cms\App;
 
 /**
  * Vérifie les liens externes (HEAD, puis GET si le serveur refuse HEAD), en parallèle,
- * et garde le résultat en cache une semaine.
+ * et garde le résultat en cache une semaine. Seulement en http(s), et jamais vers une adresse
+ * du réseau interne : le contenu du site ne doit pas permettre de sonder le serveur.
  */
 class LinkChecker
 {
@@ -34,8 +35,17 @@ class LinkChecker
     {
         $results = [];
         $retry   = [];
+        $allowed = [];
 
-        foreach ($this->run($hrefs, 'HEAD') as $href => $result) {
+        foreach ($hrefs as $href) {
+            if ($refused = static::refusal($href)) {
+                $results[$href] = $refused;
+            } else {
+                $allowed[] = $href;
+            }
+        }
+
+        foreach ($this->run($allowed, 'HEAD') as $href => $result) {
             // HEAD refusé ou mal géré par certains serveurs : on retente en GET
             if (in_array($result['code'], [0, 403, 404, 405, 406, 429, 501, 999], true)) {
                 $retry[] = $href;
@@ -60,6 +70,53 @@ class LinkChecker
         return $results;
     }
 
+    /** Résultat à la place d'une requête : autre protocole que http(s), ou adresse interne */
+    public static function refusal(string $href): ?array
+    {
+        $url = parse_url($href);
+
+        if (!in_array(strtolower($url['scheme'] ?? ''), ['http', 'https'], true) || empty($url['host'])) {
+            return ['level' => 'warn', 'code' => null, 'key' => 'link_scheme'];
+        }
+
+        return static::isPrivateHost($url['host'])
+            ? ['level' => 'warn', 'code' => null, 'key' => 'link_private']
+            : null;
+    }
+
+    /** Un nom qui ne se résout pas n'est pas refusé ici : curl le dira injoignable */
+    public static function isPrivateHost(string $host): bool
+    {
+        $host = strtolower(trim($host, '[]'));
+
+        if ($host === 'localhost' || str_ends_with($host, '.localhost')) return true;
+
+        $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
+
+        foreach ($ips as $ip) {
+            if (static::isPrivateIp($ip)) return true;
+        }
+
+        return false;
+    }
+
+    public static function isPrivateIp(string $ip): bool
+    {
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    }
+
+    /** Même adresse au protocole, au www et à la barre finale près : rien à corriger */
+    public static function isMinorRedirect(string $from, string $to): bool
+    {
+        $normalize = function (string $url) {
+            $parts = parse_url($url);
+            $host  = preg_replace('/^www\./', '', strtolower($parts['host'] ?? ''));
+            return $host . rtrim($parts['path'] ?? '', '/') . (isset($parts['query']) ? '?' . $parts['query'] : '');
+        };
+
+        return $normalize($from) === $normalize($to);
+    }
+
     public function forget(array $hrefs): void
     {
         foreach ($hrefs as $href) {
@@ -80,6 +137,8 @@ class LinkChecker
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS      => 5,
+                CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+                CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_TIMEOUT        => self::TIMEOUT,
                 CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; kirby-visibilizer link checker)',
@@ -103,15 +162,19 @@ class LinkChecker
             $final     = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
             $redirects = (int) curl_getinfo($ch, CURLINFO_REDIRECT_COUNT);
             $error     = curl_errno($ch);
+            $ip        = (string) curl_getinfo($ch, CURLINFO_PRIMARY_IP);
 
             // 206 = réponse partielle à notre Range
             if ($code === 206) $code = 200;
 
             $results[$href] = match (true) {
+                // Une redirection a pu mener vers le réseau interne : rien de sa réponse ne ressort
+                $ip !== '' && static::isPrivateIp($ip) => ['level' => 'warn', 'code' => null, 'key' => 'link_private'],
                 $code === 0                          => ['level' => 'error', 'code' => 0, 'key' => $error === CURLE_OPERATION_TIMEDOUT ? 'link_timeout' : 'link_unreachable'],
                 // Anti-robots (LinkedIn répond 999, Cloudflare & co 403 / 429) : le lien marche sûrement dans un navigateur
                 in_array($code, [403, 429, 999], true) => ['level' => 'warn', 'code' => $code, 'key' => 'link_blocked'],
                 $code >= 400                         => ['level' => 'error', 'code' => $code, 'key' => $code === 404 || $code === 410 ? 'link_notfound' : 'link_http'],
+                $redirects > 0 && static::isMinorRedirect($href, $final) => ['level' => 'ok', 'code' => $code, 'key' => 'link_redirect_minor', 'redirect' => $final],
                 $redirects > 0 && $final !== $href   => ['level' => 'warn', 'code' => $code, 'key' => 'link_redirect', 'redirect' => $final],
                 default                              => ['level' => 'ok', 'code' => $code],
             };

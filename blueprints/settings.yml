@@ -45,6 +45,15 @@ og_image:
     en: "Recommended: 1200×630 px. Used when a page has no share image of its own."
     fr: "Recommandé : 1200×630 px. Utilisée quand une page n'a pas sa propre image de partage."
 
+alt_template:
+  type: text
+  label:
+    en: Default image alt text
+    fr: Texte alternatif par défaut des images
+  help:
+    en: "For images whose alt field is empty. Can use the fields of the page, the file and the site, e.g. &#123;&#123; page.title &#125;&#125; – &#123;&#123; site.title &#125;&#125;. A template in config.php takes priority."
+    fr: "Pour les images dont le champ alt est vide. Peut reprendre les champs de la page, du fichier et du site, ex. &#123;&#123; page.title &#125;&#125; – &#123;&#123; site.title &#125;&#125;. Un modèle dans config.php reste prioritaire."
+
 icon_headline:
   type: headline
   label:
@@ -52,20 +61,37 @@ icon_headline:
     fr: Icône du site
   numbered: false
 
-favicon:
+icon_png:
   type: files
   label:
-    en: Icon
-    fr: Icône
-  max: 2
-  query: site.files.filterBy("extension", "in", ["png", "svg", "jpg", "jpeg", "webp"])
-  uploads:
-    accept: image/png, image/svg+xml, image/jpeg, image/webp
+    en: Icon (PNG)
+    fr: Icône (PNG)
+  width: 1/2
+  max: 1
+  multiple: false
+  query: site.files.filterBy("extension", "in", ["png", "jpg", "jpeg", "webp"])
+  uploads: true
   layout: cards
   size: tiny
   help:
-    en: "A square PNG of at least 512×512 px — the favicon, Google's results, the home screen icon and the app manifest are generated from it. Add an SVG as well for browsers that use it."
-    fr: "Un PNG carré d'au moins 512×512 px : favicon, icône dans les résultats Google, icône d'écran d'accueil et manifeste d'application en sont générés. Ajoutez aussi un SVG pour les navigateurs qui le prennent."
+    en: "Required. Square, at least 512×512 px: the favicon, the home screen icons and the manifest are generated from it when you save."
+    fr: "Obligatoire. Carré, au moins 512×512 px : favicon, icônes d'écran d'accueil et manifeste en sont générés à l'enregistrement."
+
+icon_svg:
+  type: files
+  label:
+    en: Icon (SVG)
+    fr: Icône (SVG)
+  width: 1/2
+  max: 1
+  multiple: false
+  query: site.files.filterBy("extension", "svg")
+  uploads: true
+  layout: cards
+  size: tiny
+  help:
+    en: Optional. Sharper in browser tabs. Not used to generate the PNG icons.
+    fr: Facultatif. Plus net dans les onglets. Ne sert pas à générer les icônes PNG.
 
 app_name:
   type: text

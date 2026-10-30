@@ -258,17 +258,21 @@ class Audit
         $links   = [];
         $models  = $this->pages()->values();
         array_unshift($models, $this->kirby->site());
+        // Toutes les langues : un lien peut n'exister que dans une traduction
+        $languages = $this->kirby->multilang() ? $this->kirby->languages()->codes() : [null];
 
         foreach ($models as $model) {
-            foreach ($model->content()->toArray() as $value) {
-                if (!is_string($value) || $value === '') continue;
+            foreach ($languages as $language) {
+                foreach ($model->content($language)->toArray() as $value) {
+                    if (!is_string($value) || $value === '') continue;
 
-                foreach ($this->extractLinks($value) as $href) {
-                    $links[$href] ??= ['href' => $href, 'from' => []];
-                    $links[$href]['from'][$model instanceof Site ? 'site' : $model->id()] = [
-                        'title' => $model->title()->value(),
-                        'panel' => $model->panel()->url(),
-                    ];
+                    foreach ($this->extractLinks($value) as $href) {
+                        $links[$href] ??= ['href' => $href, 'from' => []];
+                        $links[$href]['from'][$model instanceof Site ? 'site' : $model->id()] = [
+                            'title' => $model->title()->value(),
+                            'panel' => $model->panel()->url(),
+                        ];
+                    }
                 }
             }
         }

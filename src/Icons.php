@@ -36,12 +36,18 @@ class Icons
     // Réglages
     // -------------------------------------------------------------------------
 
-    /** Fichiers choisis : le premier PNG (ou JPG/WebP) pour les images, le premier SVG pour les navigateurs qui le prennent */
+    /**
+     * Fichiers choisis dans les réglages (`icon_png`, `icon_svg`).
+     * Un champ `favicon` existant sur le site sert de repli, selon l'extension de ses fichiers.
+     */
     public function sources(): array
     {
-        $files  = $this->kirby->site()->content()->get('favicon')->toFiles();
-        $raster = $files->filter(fn (File $f) => in_array($f->extension(), ['png', 'jpg', 'jpeg', 'webp'], true))->first();
-        $svg    = $files->filter(fn (File $f) => $f->extension() === 'svg')->first();
+        $site   = $this->kirby->site()->content();
+        $legacy = $site->get('favicon')->toFiles();
+        $raster = $site->get('icon_png')->toFile()
+            ?? $legacy->filter(fn (File $f) => in_array($f->extension(), ['png', 'jpg', 'jpeg', 'webp'], true))->first();
+        $svg    = $site->get('icon_svg')->toFile()
+            ?? $legacy->filter(fn (File $f) => $f->extension() === 'svg')->first();
 
         return ['raster' => $raster, 'svg' => $svg];
     }

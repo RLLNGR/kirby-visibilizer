@@ -141,7 +141,7 @@ const SeoPreview = {
 
     // Icône du site : en direct dans les réglages (champ favicon), sinon celle générée
     faviconUrl() {
-      return (this.liveValues && this.fileUrl(this.values.favicon)) || this.ctx.faviconUrl || null;
+      return (this.liveValues && (this.fileUrl(this.values.icon_svg) || this.fileUrl(this.values.icon_png))) || this.ctx.faviconUrl || null;
     },
 
     twitterImageUrl() {
@@ -449,11 +449,14 @@ const BATCH = 5
 
 // Une carte par famille de contrôles, avec sa couleur de pastille et l'onglet qu'elle ouvre
 const CARDS = [
-  { key: 'titles', color: 'blue', tab: 'pages' },
-  { key: 'descriptions', color: 'green', tab: 'pages' },
-  { key: 'alts', color: 'magenta', tab: 'images' },
-  { key: 'links', color: 'orange', tab: 'links' },
+  { key: 'titles', tab: 'pages' },
+  { key: 'descriptions', tab: 'pages' },
+  { key: 'alts', tab: 'images' },
+  { key: 'links', tab: 'links' },
 ]
+
+// Couleur de témoin, mêmes seuils que l'aperçu : vert, orange, rouge ; bleu tant qu'il n'y a rien à juger
+const scoreColor = score => (score === null ? 'blue' : score >= 75 ? 'green' : score >= 50 ? 'orange' : 'red')
 
 const count = (items, level) => items.filter(l => l === level).length
 const SeoView = {
@@ -471,6 +474,7 @@ const SeoView = {
       query: '',
       open: {},
       results: {},
+      failed: {},
       checking: null,
       fallbacks: readPref(),
       form: { ...this.settings.values },
@@ -499,9 +503,10 @@ const SeoView = {
         const prefix = card.key === 'links' ? 'links.' : card.key === 'alts' ? 'alts.' : ''
         const legend = ['ok', 'warn', 'error', 'pending']
           .filter(l => counts[l])
-          .map(l => ({ level: l, text: this.$t('visibilizer.count.' + (l === 'pending' ? 'links.' : prefix) + l, { count: counts[l] }) }))
+          .map(l => ({ level: l, text: this.$t('visibilizer.count.' + (l === 'pending' ? 'links.' + (this.checking ? 'pending' : 'unchecked') : prefix + l), { count: counts[l] }) }))
         return {
           ...card,
+          color: scoreColor(score),
           counts,
           total: levels.length,
           legend,
@@ -565,7 +570,8 @@ const SeoView = {
       ]
     },
     fileUsage() {
-      const names = { favicon: this.$t('visibilizer.files.favicon'), og_image: this.$t('visibilizer.files.og_image') }
+      const icon = this.$t('visibilizer.files.favicon')
+      const names = { favicon: icon, icon_png: icon, icon_svg: icon, og_image: this.$t('visibilizer.files.og_image') }
       return file => file.used.map(u => (u.page ? u.page : names[u.field] || u.field))
     },
     settingsChanged() {
@@ -664,23 +670,32 @@ const SeoView = {
     issue(i) {
       return this.$t('visibilizer.issue.' + i.key, i.data || {})
     },
-    linkDetail(result) {
-      if (!result) return this.$t('visibilizer.pending')
+    linkDetail(row) {
+      const result = row.result
+      if (!result) {
+        if (this.failed[row.href]) return this.$t('visibilizer.link.failed')
+        return this.$t(this.checking ? 'visibilizer.checking' : 'visibilizer.pending')
+      }
       return result.key ? this.$t('visibilizer.link.' + result.key, result) : this.$t('visibilizer.link.ok')
     },
     async check(hrefs, force = false) {
       this.checking = { done: 0, total: hrefs.length }
+      this.failed = {}
+      let error = null
       for (let i = 0; i < hrefs.length; i += BATCH) {
         const batch = hrefs.slice(i, i + BATCH)
         try {
           const res = await this.$api.post('rllngr/visibilizer-audit/links', { hrefs: batch, force })
           for (const href of Object.keys(res || {})) this.$set(this.results, href, res[href])
         } catch (e) {
-          /* on garde l'état précédent */
+          // Le lot reste sans résultat, signalé sur ses lignes ; une seule notification pour toute la passe
+          for (const href of batch) this.$set(this.failed, href, true)
+          error = e
         }
         this.checking.done = Math.min(hrefs.length, i + BATCH)
       }
       this.checking = null
+      if (error) this.$panel.notification.error(error)
     },
     fill() {
       this.$panel.dialog.open({
@@ -750,7 +765,7 @@ const SeoView = {
           </nav>
         </header>
 
-        <div class="k-vis-cards">
+        <div v-if="current !== 'settings'" class="k-vis-cards">
           <button
             v-for="c in cards"
             :key="c.key"
@@ -783,9 +798,9 @@ const SeoView = {
         </div>
 
         <template v-if="current === 'settings'">
-          <section class="k-vis-block k-vis-settings">
-            <template v-for="(group, i) in settingsGroups">
-              <div v-if="i === 0" :key="group.key" class="k-vis-settings-split">
+          <template v-for="(group, i) in settingsGroups">
+            <section :key="group.key" class="k-vis-block k-vis-settings">
+              <div v-if="i === 0" class="k-vis-settings-split">
                 <k-visibilizer-preview
                   class="k-vis-settings-preview"
                   :label="$t('visibilizer.settings.preview')"
@@ -795,7 +810,7 @@ const SeoView = {
                 />
                 <k-fieldset :fields="group.fields" :value="form" :novalidate="true" @input="form = $event" />
               </div>
-              <div v-else :key="group.key" class="k-vis-settings-group">
+              <template v-else>
                 <k-fieldset :fields="group.fields" :value="form" :novalidate="true" @input="form = $event" />
                 <div v-if="group.key === 'icon_headline'" class="k-vis-icon-state">
                   <div v-if="iconPreviews.length" class="k-vis-icon-previews">
@@ -811,9 +826,10 @@ const SeoView = {
                     </li>
                   </ul>
                 </div>
-              </div>
-            </template>
-            <div class="k-vis-settings-bar">
+              </template>
+            </section>
+          </template>
+          <div class="k-vis-block k-vis-settings-bar">
               <span v-if="!settings.editable" class="k-vis-muted">{{ $t('visibilizer.settings.readonly') }}</span>
               <span v-else-if="settingsChanged" class="k-vis-muted">{{ $t('visibilizer.settings.unsaved') }}</span>
               <span v-else class="k-vis-muted">{{ $t('visibilizer.settings.stored') }}</span>
@@ -824,7 +840,7 @@ const SeoView = {
                 </button>
               </span>
             </div>
-          </section>
+
           <section class="k-vis-block">
             <div class="k-vis-files-head">
               <h2 class="k-vis-caption">{{ $t('visibilizer.files') }}</h2>
@@ -994,13 +1010,13 @@ const SeoView = {
               <div :key="row.href" class="k-vis-row" :class="{ open: open[row.href] }" @click="row.from.length > 1 && toggle(row.href)">
                 <span class="k-vis-cell-status">
                   <span class="k-vis-dot" :data-level="row.result ? row.result.level : 'pending'"></span>
-                  <span class="k-vis-code">{{ row.result && row.result.code ? row.result.code : '—' }}</span>
+                  <span class="k-vis-code">{{ row.result && row.result.code === 0 ? $t('visibilizer.link.code_none') : row.result && row.result.code ? row.result.code : '—' }}</span>
                 </span>
                 <span class="k-vis-cell-page">
                   <span class="k-vis-href" :title="row.href">{{ row.label }}</span>
                   <span class="k-vis-path">{{ $t(row.internal ? 'visibilizer.internal' : 'visibilizer.external') }}</span>
                 </span>
-                <span class="k-vis-cell-text" :class="{ 'k-vis-muted': !row.result }">{{ linkDetail(row.result) }}</span>
+                <span class="k-vis-cell-text" :class="{ 'k-vis-muted': !row.result }">{{ linkDetail(row) }}</span>
                 <span class="k-vis-cell-from">
                   <k-link :to="row.from[0].panel" class="k-vis-link" @click.native.stop>{{ row.from[0].title }}</k-link>
                   <span v-if="row.from.length > 1" class="k-vis-muted" :title="row.from.slice(1).map(f => f.title).join(', ')">{{ $t('visibilizer.more', { count: row.from.length - 1 }) }}</span>
