@@ -34,6 +34,13 @@ class AltTest extends TestCase
         $this->assertSame('Projet pour Acme, Ana – Studio', Alt::text($file));
     }
 
+    public function testKeepsTheSpaceOfFrenchPunctuation(): void
+    {
+        $file = $this->site([], ['alt_template' => '{{ page.title }} : {{ page.client }}, {{ file.missing }}, {{ site.title }}'])->file('projet/a.jpg');
+
+        $this->assertSame('Projet : Acme, Studio', Alt::text($file));
+    }
+
     public function testAWrittenAltWins(): void
     {
         $file = $this->site([], ['alt_template' => '{{ page.title }}'])->file('projet/b.jpg');

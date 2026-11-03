@@ -12,11 +12,14 @@ use Kirby\Cms\Page;
  */
 class Url
 {
-    /** Adresse publique du site, sans barre finale */
+    /**
+     * Adresse publique du site, sans barre finale. Celle de Kirby et non `$site->url()`,
+     * qui porte le préfixe de langue (`/fr`) sur un site multilingue.
+     */
     public static function site(): string
     {
         $kirby = kirby();
-        return rtrim($kirby->option('rllngr.kirby-visibilizer.siteUrl') ?? $kirby->site()->url(), '/');
+        return rtrim($kirby->option('rllngr.kirby-visibilizer.siteUrl') ?? $kirby->url(), '/');
     }
 
     /**
@@ -42,7 +45,7 @@ class Url
     /** Remplace l'adresse de Kirby par l'adresse publique */
     public static function public(string $url): string
     {
-        $kirbyBase = rtrim(kirby()->site()->url(), '/');
+        $kirbyBase = rtrim(kirby()->url(), '/');
         $public    = static::site();
 
         if ($public !== $kirbyBase && str_starts_with($url, $kirbyBase)) {
@@ -56,7 +59,7 @@ class Url
     public static function hosts(): array
     {
         $hosts = [];
-        foreach ([kirby()->site()->url(), static::site()] as $url) {
+        foreach ([kirby()->url(), static::site()] as $url) {
             $parts = parse_url($url);
             if (isset($parts['host'])) {
                 $hosts[] = ['host' => strtolower($parts['host']), 'port' => $parts['port'] ?? null, 'path' => rtrim($parts['path'] ?? '', '/')];

@@ -90,7 +90,8 @@ class Alt
         $text = preg_replace('/\s*(?:' . $sep . ')\s*(?=(?:' . $sep . '))/u', ' ', $text);
         $text = preg_replace('/^(?:\s|' . $sep . ')+|(?:\s|' . $sep . ')+$/u', '', $text);
 
-        $text = preg_replace('/\s+([,;:])/u', '$1', $text);
+        // Virgule seulement : l'espace avant « : » et « ; » est celle de la typographie française
+        $text = preg_replace('/\s+,/u', ',', $text);
 
         return trim(preg_replace('/\s+/u', ' ', $text));
     }

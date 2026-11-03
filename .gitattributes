@@ -6,3 +6,4 @@
 /scripts export-ignore
 /src/panel.js export-ignore
 /tests export-ignore
+/docs export-ignore
