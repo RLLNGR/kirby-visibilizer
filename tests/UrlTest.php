@@ -24,6 +24,20 @@ class UrlTest extends TestCase
         $this->assertStringStartsWith('https://front.test/projet', Url::page($app->page('projet')));
     }
 
+    public function testReadsTheSubfolderTheSiteLivesIn(): void
+    {
+        $this->app(['urls' => ['index' => 'https://kirby.test/un-site/']]);
+
+        $this->assertSame('/un-site', Url::basePath());
+    }
+
+    public function testHasNoBasePathAtTheRootOfTheDomain(): void
+    {
+        $this->app();
+
+        $this->assertSame('', Url::basePath());
+    }
+
     public function testLeavesOtherAddressesAlone(): void
     {
         $this->app(['options' => ['rllngr.kirby-visibilizer' => ['siteUrl' => 'https://front.test']]]);

@@ -19,6 +19,15 @@ class Url
         return rtrim($kirby->option('rllngr.kirby-visibilizer.siteUrl') ?? $kirby->site()->url(), '/');
     }
 
+    /**
+     * Chemin du site dans son domaine, sans barre finale : '' à la racine,
+     * '/sous-dossier' quand Kirby (ou le front en headless) n'est pas à la racine.
+     */
+    public static function basePath(): string
+    {
+        return rtrim((string) parse_url(static::site(), PHP_URL_PATH), '/');
+    }
+
     /** Adresse publique d'une page (dans une langue donnée en multilingue) */
     public static function page(Page $page, string|null $language = null): string
     {

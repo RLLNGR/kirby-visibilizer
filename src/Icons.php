@@ -163,10 +163,13 @@ class Icons
     // Sortie
     // -------------------------------------------------------------------------
 
-    /** Adresse publique d'un fichier : à la racine du site (routes du plugin, ou du front en headless) */
+    /**
+     * Adresse publique d'un fichier : à la racine du site (routes du plugin, ou du front en headless),
+     * préfixée du sous-dossier quand le site n'occupe pas la racine du domaine.
+     */
     public function publicPath(string $name): string
     {
-        return '/' . $name;
+        return Url::basePath() . '/' . $name;
     }
 
     public function manifest(): array
@@ -174,7 +177,7 @@ class Icons
         return [
             'name'             => $this->name(),
             'short_name'       => $this->shortName(),
-            'start_url'        => '/',
+            'start_url'        => Url::basePath() . '/',
             'display'          => 'standalone',
             'theme_color'      => $this->themeColor(),
             'background_color' => $this->backgroundColor(),
