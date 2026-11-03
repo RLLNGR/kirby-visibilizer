@@ -672,7 +672,7 @@
   text-transform: lowercase;
   transition: background 0.15s;
 }
-.k-vis-filters button:hover:not(:disabled),
+.k-vis-filters button:hover:not(:disabled):not([aria-current]),
 .k-vis-button:hover:not(:disabled) {
   background: var(--m-hover);
 }
@@ -915,6 +915,24 @@
 .k-vis-table[data-tab="pages"] { --cols: 20px minmax(7rem, 1fr) minmax(8rem, 1.2fr) minmax(9rem, 1.6fr) 72px 28px 52px; }
 .k-vis-table[data-tab="images"] { --cols: 20px 72px minmax(9rem, 1.5fr) minmax(8rem, 1fr) 6rem 52px; }
 .k-vis-table[data-tab="links"] { --cols: 4.5rem minmax(9rem, 1.6fr) minmax(8rem, 1fr) minmax(8rem, 1fr) 32px; }
+.k-vis-table[data-tab="by-page"][data-kind="images"] { --cols: 20px 116px minmax(9rem, 1.4fr) minmax(9rem, 1.4fr) 6rem 52px; }
+.k-vis-table[data-tab="by-page"][data-kind="links"] { --cols: 20px minmax(9rem, 1.4fr) minmax(9rem, 1.4fr) 6rem 52px; }
+.k-vis-table[data-tab="by-page"] .k-vis-row:not(.k-vis-head) {
+  cursor: pointer;
+}
+/* Sous-pages : un filet à gauche, la ligne un peu plus claire */
+.k-vis-table[data-tab="by-page"] .k-vis-row:not([data-depth="0"]):not(.k-vis-head) {
+  background: color-mix(in srgb, var(--m-bg) 60%, var(--m-surface));
+}
+.k-vis-table[data-tab="by-page"] .k-vis-row:not([data-depth="0"]):not(.k-vis-head):hover {
+  background: var(--m-hover);
+}
+.k-vis-chevron {
+  --icon-size: 14px;
+  display: inline-block;
+  margin-right: 0.15rem;
+  vertical-align: -2px;
+}
 .k-vis-row {
   display: grid;
   grid-template-columns: var(--cols);
@@ -1072,19 +1090,180 @@ a.k-vis-path:hover {
   justify-content: flex-end;
   gap: 0.25rem;
 }
-.k-vis-actions a {
+.k-vis-actions a,
+.k-vis-actions button {
   display: grid;
   place-items: center;
   width: 26px;
   height: 26px;
   color: var(--m-muted);
 }
-.k-vis-actions a:hover {
+.k-vis-actions a:hover,
+.k-vis-actions button:hover {
   background: var(--m-surface);
   color: var(--m-text);
 }
 .k-vis-actions .k-icon {
   --icon-size: 14px;
+}
+
+/* Images par page : vignettes en pile, compteurs de textes alternatifs */
+.k-vis-stack {
+  display: flex;
+  height: 44px;
+}
+.k-vis-stack img {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px var(--m-bg);
+}
+.k-vis-stack img + img {
+  margin-left: -20px;
+}
+.k-vis-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+}
+.k-vis-legend [data-level="warn"] { color: var(--l-warn); }
+.k-vis-legend [data-level="error"] { color: var(--l-error); }
+.k-vis-modes .k-icon {
+  --icon-size: 14px;
+}
+.k-vis-more {
+  justify-content: center;
+  width: 100%;
+  margin-top: 2px;
+}
+
+/* Tiroir « images de la page » : rendu dans le portail du Panel, donc aux couleurs de Kirby */
+.k-vis-alts-drawer {
+  --l-ok: var(--color-positive);
+  --l-warn: var(--color-notice);
+  --l-error: var(--color-negative);
+  --l-pending: var(--color-gray-400);
+}
+.k-vis-alts-drawer :focus,
+.k-vis-alts-drawer :focus-visible {
+  outline: none;
+}
+.k-vis-alts-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: var(--spacing-3);
+  color: var(--color-text-dimmed);
+  font-size: var(--text-sm);
+}
+.k-vis-alts-path {
+  font-family: var(--font-mono);
+}
+.k-vis-alts-empty {
+  color: var(--color-text-dimmed);
+}
+.k-vis-alts {
+  display: grid;
+  gap: var(--spacing-2);
+}
+.k-vis-alts li {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--panel-color-back, var(--color-white));
+  border-radius: var(--rounded);
+  box-shadow: inset 3px 0 0 var(--l-pending), var(--shadow);
+}
+.k-vis-alts li[data-level="ok"] { box-shadow: inset 3px 0 0 var(--l-ok), var(--shadow); }
+.k-vis-alts li[data-level="warn"] { box-shadow: inset 3px 0 0 var(--l-warn), var(--shadow); }
+.k-vis-alts li[data-level="error"] { box-shadow: inset 3px 0 0 var(--l-error), var(--shadow); }
+.k-vis-alts-thumb {
+  display: block;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background: var(--color-gray-200);
+  border-radius: var(--rounded-sm);
+}
+.k-vis-alts-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.k-vis-alts-body {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+.k-vis-alts-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.k-vis-alts-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.k-vis-alts-name:hover {
+  color: var(--color-focus);
+}
+.k-vis-alts-meta {
+  flex: none;
+  margin-left: auto;
+  color: var(--color-text-dimmed);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.k-vis-alts-meta[data-heavy] {
+  color: var(--l-error);
+}
+.k-vis-alts textarea {
+  width: 100%;
+  padding: var(--spacing-2);
+  background: var(--input-color-back);
+  border: 1px solid var(--input-color-border);
+  border-radius: var(--rounded);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  resize: vertical;
+}
+.k-vis-alts textarea:focus {
+  border-color: var(--color-focus);
+}
+.k-vis-alts textarea::placeholder {
+  color: var(--color-text-dimmed);
+  font-style: italic;
+}
+.k-vis-alts-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  min-height: 1.25rem;
+  color: var(--color-text-dimmed);
+  font-size: var(--text-xs);
+}
+.k-vis-alts-foot [data-level="ok"] {
+  color: var(--l-ok);
+}
+.k-vis-alts-use {
+  color: var(--color-focus);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.k-vis-links li {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 40rem) {
+  .k-vis-alts li {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
 }
 
 /* Détail déplié d'une ligne */
@@ -1145,6 +1324,9 @@ a.k-vis-path:hover {
   .k-vis-actions {
     grid-column: 3;
     grid-row: 1;
+  }
+  .k-vis-cell-tree {
+    padding-left: 0 !important;
   }
   .k-vis-issues,
   .k-vis-from {

@@ -1,6 +1,7 @@
 <?php
 
 use Kirby\Cms\App;
+use Kirby\Exception\NotFoundException;
 use Kirby\Exception\PermissionException;
 use Kirby\Toolkit\I18n;
 use Kirby\Content\Field;
@@ -136,25 +137,47 @@ App::plugin('rllngr/kirby-visibilizer', [
                 },
             ],
             [
-                // Écrit le texte généré dans les champs alt vides des images auditées
+                // Écrit le texte généré dans les champs alt vides des images auditées (`parent` : d'une seule page, 'site' pour le site)
                 'pattern' => 'rllngr/visibilizer-audit/alts',
                 'method'  => 'POST',
                 'action'  => function () {
                     if (!visibilizerPanelAccess()) {
                         throw new PermissionException(t('visibilizer.forbidden'));
                     }
+                    $audit  = new Audit(kirby());
+                    $parent = get('parent');
                     $done   = 0;
                     $failed = 0;
-                    foreach ((new Audit(kirby()))->images() as $file) {
+                    $rows   = [];
+                    foreach ($audit->images() as $file) {
+                        if ($parent !== null && Audit::parentId($file) !== $parent) continue;
                         if (Alt::value($file) !== '' || ($text = Alt::generate($file)) === '') continue;
                         try {
-                            $file->update([Alt::field() => $text]);
+                            $rows[] = $audit->imageRow($file->update([Alt::field() => $text]));
                             $done++;
                         } catch (Throwable $e) {
                             $failed++;
                         }
                     }
-                    return ['done' => $done, 'failed' => $failed];
+                    return ['done' => $done, 'failed' => $failed, 'rows' => $rows];
+                },
+            ],
+            [
+                // Enregistre le texte alternatif d'une image auditée (tiroir « images de la page »)
+                'pattern' => 'rllngr/visibilizer-audit/alt',
+                'method'  => 'POST',
+                'action'  => function () {
+                    if (!visibilizerPanelAccess()) {
+                        throw new PermissionException(t('visibilizer.forbidden'));
+                    }
+                    $audit = new Audit(kirby());
+                    // Seulement une image de la vue SEO, pas n'importe quel fichier
+                    $file = $audit->images()->find((string) get('id'));
+                    if (!$file) {
+                        throw new NotFoundException(t('visibilizer.alt.notfound'));
+                    }
+                    $file = $file->update([Alt::field() => trim((string) get('alt', ''))]);
+                    return $audit->imageRow($file);
                 },
             ],
             [

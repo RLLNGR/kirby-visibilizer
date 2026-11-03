@@ -45,6 +45,21 @@ class MetaTest extends TestCase
         $this->assertSame(['field' => 'intro', 'value' => 'Reprise'], $meta->fallback('description'));
     }
 
+    // kirby-seo : le titre d'une page est dans metaTitle (metaTemplate n'existe que sur le site)
+    public function testReadsTheKirbySeoTitleOfAPage(): void
+    {
+        $meta = $this->meta(['metaTitle' => 'Ancien titre', 'ogTitle' => 'Ancien partage'], ['compat' => ['kirby-seo' => true]]);
+
+        $this->assertSame('Ancien titre – Site', $meta->title());
+        $this->assertSame('Ancien partage', $meta->ogTitle());
+        $this->assertSame('custom', $meta->sources()['title']);
+    }
+
+    public function testIgnoresTheKirbySeoTitleWithoutCompat(): void
+    {
+        $this->assertSame('Projet – Site', $this->meta(['metaTitle' => 'Ancien titre'])->title());
+    }
+
     public function testAFallbackIsPlainText(): void
     {
         $this->assertSame('Un texte', Meta::plainText('<p>Un&nbsp;<strong>texte</strong></p>'));

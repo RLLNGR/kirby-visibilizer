@@ -459,6 +459,251 @@ const CARDS = [
 const scoreColor = score => (score === null ? 'blue' : score >= 75 ? 'green' : score >= 50 ? 'orange' : 'red')
 
 const count = (items, level) => items.filter(l => l === level).length
+
+// Onglets Images et Liens : regroupés par page (défaut) ou en liste, choix gardé dans le navigateur
+const GROUPED = ['images', 'links']
+const readMode = tab => {
+  try {
+    return window.localStorage.getItem('visibilizer.' + tab) === 'list' ? 'list' : 'pages'
+  } catch (e) {
+    return 'pages'
+  }
+}
+
+// Niveau d'un lien : celui de sa vérification, « pending » tant qu'il n'est pas vérifié
+const linkLevel = link => (link.result ? link.result.level : 'pending')
+
+// Lignes affichées d'un coup dans les tableaux, puis « afficher plus »
+const LIMIT = 100
+
+const altLevel = image => (image.alt ? 'ok' : image.generated ? 'warn' : 'error')
+
+// Tiroir « images de la page » : un champ texte alternatif par image, enregistré en quittant le champ
+const AltsDrawer = {
+  props: {
+    // Props de k-drawer
+    current: { default: true, type: Boolean },
+    icon: String,
+    id: String,
+    options: Array,
+    size: { default: 'large', type: String },
+    title: String,
+    visible: { default: false, type: Boolean },
+
+    page: Object,
+    images: Array,
+    only: Boolean,
+    // Prévient la vue de chaque enregistrement : une prop plutôt qu'un événement, car Kirby retire
+    // les écouteurs du tiroir dès sa fermeture, alors qu'un enregistrement peut finir après
+    onSaved: { type: Function, default: () => {} },
+  },
+  emits: ['cancel', 'submit'],
+  data() {
+    return {
+      items: this.images.map(i => ({ ...i })),
+      drafts: Object.fromEntries(this.images.map(i => [i.id, i.alt])),
+      saving: {},
+      done: {},
+      filling: false,
+      // Images sans texte au moment du filtre : elles restent affichées une fois remplies
+      pinned: this.only ? this.images.filter(i => !i.alt).map(i => i.id) : null,
+    }
+  },
+  computed: {
+    shown() {
+      return this.pinned ? this.items.filter(i => this.pinned.includes(i.id)) : this.items
+    },
+    missing() {
+      return this.items.filter(i => !i.alt).length
+    },
+    fillable() {
+      return this.items.filter(i => !i.alt && i.generated).length
+    },
+  },
+  methods: {
+    level: altLevel,
+    heavy(item) {
+      return item.issues.some(i => i.key === 'image_heavy')
+    },
+    toggleOnly() {
+      this.pinned = this.pinned ? null : this.items.filter(i => !i.alt).map(i => i.id)
+    },
+    replace(rows) {
+      for (const row of rows) {
+        const n = this.items.findIndex(i => i.id === row.id)
+        if (n === -1) continue
+        this.$set(this.items, n, row)
+        this.$set(this.drafts, row.id, row.alt)
+      }
+      this.onSaved(rows)
+    },
+    // Fermeture du tiroir alors qu'un champ a encore le focus : le blur n'arrive pas toujours
+    flush() {
+      for (const item of this.items) this.save(item)
+    },
+    async save(item) {
+      const value = (this.drafts[item.id] || '').trim()
+      if (value === item.alt || this.saving[item.id]) return
+      this.$set(this.saving, item.id, true)
+      try {
+        const row = await this.$api.post('rllngr/visibilizer-audit/alt', { id: item.id, alt: value })
+        this.replace([row])
+        this.$set(this.done, item.id, true)
+      } catch (e) {
+        this.$panel.notification.error(e)
+      } finally {
+        this.$set(this.saving, item.id, false)
+      }
+    },
+    useGenerated(item) {
+      this.$set(this.drafts, item.id, item.generated)
+      this.save(item)
+    },
+    // Entrée : enregistre et passe à l'image suivante (Maj + Entrée pour un retour à la ligne)
+    next(event) {
+      const li = event.target.closest('li')
+      event.target.blur()
+      li?.nextElementSibling?.querySelector('textarea')?.focus()
+    },
+    async fill() {
+      this.filling = true
+      try {
+        const res = await this.$api.post('rllngr/visibilizer-audit/alts', { parent: this.page.id })
+        this.replace(res.rows)
+        this.$panel.notification.success(this.$t('visibilizer.fill.done', { count: res.done }))
+      } catch (e) {
+        this.$panel.notification.error(e)
+      } finally {
+        this.filling = false
+      }
+    },
+  },
+  watch: {
+    visible(visible) {
+      if (!visible) this.flush()
+    },
+  },
+  beforeDestroy() {
+    this.flush()
+  },
+  template: `
+    <k-drawer v-bind="$props" class="k-vis-alts-drawer" @cancel="$emit('cancel')" @submit="$emit('submit')">
+      <template #options>
+        <k-button
+          v-if="fillable"
+          class="k-drawer-option"
+          icon="wand"
+          :text="$t('visibilizer.fill') + ' (' + fillable + ')'"
+          :disabled="filling"
+          @click="fill"
+        />
+        <k-button
+          class="k-drawer-option"
+          icon="filter"
+          :theme="pinned ? 'notice' : null"
+          :text="$t('visibilizer.alts.only')"
+          :disabled="!pinned && !missing"
+          @click="toggleOnly"
+        />
+        <k-button class="k-drawer-option" icon="edit" :link="page.panel" :title="$t('visibilizer.open.panel')" />
+      </template>
+
+      <p class="k-vis-alts-summary">
+        {{ $t('visibilizer.alts.summary', { count: items.length, missing }) }}
+        <span class="k-vis-alts-path">{{ page.path }}</span>
+      </p>
+      <p v-if="!shown.length" class="k-vis-alts-empty">{{ $t('visibilizer.empty.filter') }}</p>
+      <ul class="k-vis-alts">
+        <li v-for="item in shown" :key="item.id" :data-level="level(item)">
+          <a :href="item.url" target="_blank" rel="noopener" class="k-vis-alts-thumb" :title="$t('visibilizer.open.site')">
+            <img v-if="item.thumb" :src="item.thumb" alt="" loading="lazy" />
+          </a>
+          <div class="k-vis-alts-body">
+            <div class="k-vis-alts-head">
+              <span class="k-vis-dot" :data-level="level(item)"></span>
+              <k-link :to="item.panel" class="k-vis-alts-name">{{ item.filename }}</k-link>
+              <span class="k-vis-alts-meta" :data-heavy="heavy(item) ? 'true' : null">{{ item.niceSize }} · {{ item.width }} × {{ item.height }}</span>
+            </div>
+            <textarea
+              rows="2"
+              :value="drafts[item.id]"
+              :placeholder="item.generated || $t('visibilizer.alts.placeholder')"
+              @input="$set(drafts, item.id, $event.target.value); $set(done, item.id, false)"
+              @blur="save(item)"
+              @keydown.enter.exact.prevent="next"
+            ></textarea>
+            <div class="k-vis-alts-foot">
+              <button v-if="!drafts[item.id] && item.generated" type="button" class="k-vis-alts-use" @click="useGenerated(item)">
+                {{ $t('visibilizer.alts.use') }}
+              </button>
+              <span v-if="saving[item.id]">{{ $t('visibilizer.settings.saving') }}</span>
+              <span v-else-if="done[item.id]" data-level="ok">{{ $t('visibilizer.alts.saved') }}</span>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </k-drawer>
+  `,
+}
+
+// Tiroir « liens de la page » : leur état, lu en direct dans la vue (la vérification peut être en cours)
+const LinksDrawer = {
+  props: {
+    // Props de k-drawer
+    current: { default: true, type: Boolean },
+    icon: String,
+    id: String,
+    options: Array,
+    size: { default: 'large', type: String },
+    title: String,
+    visible: { default: false, type: Boolean },
+
+    page: Object,
+    // Fonctions de la vue : les liens de la page, le texte d'état d'un lien
+    links: Function,
+    detail: Function,
+  },
+  emits: ['cancel', 'submit'],
+  computed: {
+    rows() {
+      return this.links()
+    },
+    broken() {
+      return this.rows.filter(l => linkLevel(l) === 'error').length
+    },
+  },
+  methods: {
+    level: linkLevel,
+  },
+  template: `
+    <k-drawer v-bind="$props" class="k-vis-alts-drawer" @cancel="$emit('cancel')" @submit="$emit('submit')">
+      <template #options>
+        <k-button class="k-drawer-option" icon="edit" :link="page.panel" :title="$t('visibilizer.open.panel')" />
+      </template>
+
+      <p class="k-vis-alts-summary">
+        {{ $t('visibilizer.links.summary', { count: rows.length, broken }) }}
+        <span class="k-vis-alts-path">{{ page.path }}</span>
+      </p>
+      <ul class="k-vis-alts k-vis-links">
+        <li v-for="row in rows" :key="row.href" :data-level="level(row)">
+          <div class="k-vis-alts-body">
+            <div class="k-vis-alts-head">
+              <span class="k-vis-dot" :data-level="level(row)"></span>
+              <a :href="row.result && row.result.internal ? row.label : row.href" target="_blank" rel="noopener" class="k-vis-alts-name" :title="row.href">{{ row.label }}</a>
+              <span class="k-vis-alts-meta">{{ row.result && row.result.code ? row.result.code : '—' }}</span>
+            </div>
+            <div class="k-vis-alts-foot">
+              <span>{{ $t(row.internal ? 'visibilizer.internal' : 'visibilizer.external') }} · {{ detail(row) }}</span>
+              <span v-if="row.from.length > 1">{{ $t('visibilizer.links.elsewhere', { count: row.from.length - 1 }) }}</span>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </k-drawer>
+  `,
+}
+
 const SeoView = {
   props: {
     tab: String,
@@ -479,9 +724,18 @@ const SeoView = {
       fallbacks: readPref(),
       form: { ...this.settings.values },
       saving: false,
+      modes: Object.fromEntries(GROUPED.map(tab => [tab, readMode(tab)])),
+      expanded: {},
+      saved: {},
+      limit: LIMIT,
+      step: LIMIT,
     }
   },
   computed: {
+    // Images, avec les textes enregistrés depuis le tiroir sans recharger la vue
+    imageRows() {
+      return this.images.map(i => this.saved[i.id] || i)
+    },
     linkRows() {
       return this.links.map(l => ({ ...l, result: this.results[l.href] || l.result }))
     },
@@ -490,7 +744,7 @@ const SeoView = {
       return {
         titles: this.pages.map(p => this.checkLevel(p.checks.title)),
         descriptions: this.pages.map(p => this.checkLevel(p.checks.description)),
-        alts: this.images.map(i => this.issuesLevel(i.issues.filter(x => x.key.startsWith('alt_')))),
+        alts: this.imageRows.map(i => this.issuesLevel(i.issues.filter(x => x.key.startsWith('alt_')))),
         links: this.linkRows.map(l => (l.result ? l.result.level : null)),
       }
     },
@@ -503,7 +757,7 @@ const SeoView = {
         const prefix = card.key === 'links' ? 'links.' : card.key === 'alts' ? 'alts.' : ''
         const legend = ['ok', 'warn', 'error', 'pending']
           .filter(l => counts[l])
-          .map(l => ({ level: l, text: this.$t('visibilizer.count.' + (l === 'pending' ? 'links.' + (this.checking ? 'pending' : 'unchecked') : prefix + l), { count: counts[l] }) }))
+          .map(l => ({ level: l, text: this.countText('visibilizer.count.' + (l === 'pending' ? 'links.' + (this.checking ? 'pending' : 'unchecked') : prefix + l), counts[l]) }))
         return {
           ...card,
           color: scoreColor(score),
@@ -604,10 +858,90 @@ const SeoView = {
     },
     // Images sans texte alternatif mais avec un texte généré par le modèle
     fillable() {
-      return this.images.filter(i => !i.alt && i.generated).length
+      return this.imageRows.filter(i => !i.alt && i.generated).length
+    },
+    visibleRows() {
+      return this.rows.slice(0, this.limit)
+    },
+    // Onglet regroupé par page
+    byPage() {
+      return GROUPED.includes(this.current) && this.modes[this.current] === 'pages'
+    },
+    pageIndex() {
+      return Object.fromEntries(this.pages.map((p, n) => [p.id, { ...p, rank: n }]))
+    },
+    /*
+     * Pages qui ont au moins un élément dans le filtre, rangées sous leurs parents (projects → projects/ben…).
+     * Un parent sans élément à lui apparaît quand même, pour regrouper ses enfants ; les compteurs d'un
+     * parent portent sur toutes ses sous-pages, ceux d'une page sur tous ses éléments (pas seulement le filtre).
+     */
+    pageTree() {
+      if (!this.byPage) return []
+      const own = {}
+      for (const row of this.source(this.current)) {
+        for (const page of this.pagesOf(row)) (own[page.id] ||= { page, items: [] }).items.push(row)
+      }
+      const nodes = {}
+      const node = id => {
+        if (nodes[id]) return nodes[id]
+        const info = own[id]?.page || this.pageIndex[id] || { id, title: id.split('/').pop(), path: '/' + id, panel: null }
+        const slash = id.lastIndexOf('/')
+        return (nodes[id] = {
+          id,
+          title: info.title,
+          path: info.path,
+          panel: info.panel,
+          rank: id === 'site' ? -1 : this.pageIndex[id]?.rank ?? Infinity,
+          parent: slash === -1 ? null : id.slice(0, slash),
+          items: own[id]?.items || [],
+          children: [],
+        })
+      }
+      for (const row of this.rows) {
+        for (const page of this.pagesOf(row)) {
+          let n = node(page.id)
+          while (n.parent) {
+            const p = node(n.parent)
+            if (!p.children.includes(n)) p.children.push(n)
+            n = p
+          }
+        }
+      }
+      const sort = list => list.sort((a, b) => a.rank - b.rank || a.path.localeCompare(b.path))
+      for (const n of Object.values(nodes)) sort(n.children)
+      return sort(Object.values(nodes).filter(n => !n.parent))
+    },
+    // Lignes affichées : l'arbre déplié (tout est ouvert pendant une recherche ou un filtre)
+    pageRows() {
+      const all = this.query.trim() || this.level !== 'all'
+      const rows = []
+      const walk = (list, depth) => {
+        for (const n of list) {
+          const open = all || this.expanded[n.id]
+          rows.push(this.summary(n, depth, open))
+          if (n.children.length && open) walk(n.children, depth + 1)
+        }
+      }
+      walk(this.pageTree, 0)
+      return rows
     },
     pendingLinks() {
       return this.linkRows.filter(l => !l.internal && !l.result).map(l => l.href)
+    },
+  },
+  watch: {
+    // Vue rechargée : les textes enregistrés depuis le tiroir y sont déjà
+    images() {
+      this.saved = {}
+    },
+    current() {
+      this.limit = LIMIT
+    },
+    level() {
+      this.limit = LIMIT
+    },
+    query() {
+      this.limit = LIMIT
     },
   },
   mounted() {
@@ -616,7 +950,7 @@ const SeoView = {
   },
   methods: {
     source(tab) {
-      return tab === 'pages' ? this.pages : tab === 'images' ? this.images : this.linkRows
+      return tab === 'pages' ? this.pages : tab === 'images' ? this.imageRows : this.linkRows
     },
     levelOf(row) {
       if (this.current === 'links' || row.href) return row.result ? row.result.level : 'pending'
@@ -663,6 +997,99 @@ const SeoView = {
     toggle(key) {
       this.$set(this.open, key, !this.open[key])
     },
+    // Compteurs des textes alternatifs : « 1 image décrite » / « 3 images décrites »
+    countText(key, count) {
+      return this.$t(key + (count === 1 && key.startsWith('visibilizer.count.alts.') ? '.one' : ''), { count })
+    },
+    setMode(mode) {
+      this.$set(this.modes, this.current, mode)
+      this.limit = LIMIT
+      try {
+        window.localStorage.setItem('visibilizer.' + this.current, mode)
+      } catch (e) {
+        /* préférence non gardée */
+      }
+    },
+    pagesOf(row) {
+      return row.href ? row.from : [row.parent]
+    },
+    // Compteurs d'une ligne de l'arbre : la page et toutes ses sous-pages, chaque élément compté une fois
+    summary(n, depth, open) {
+      const seen = new Set()
+      const items = []
+      const collect = node => {
+        for (const i of node.items) {
+          const key = i.href || i.id
+          if (seen.has(key)) continue
+          seen.add(key)
+          items.push(i)
+        }
+        node.children.forEach(collect)
+      }
+      collect(n)
+      const pages = (function size(node) {
+        return node.children.reduce((sum, c) => sum + 1 + size(c), 0)
+      })(n)
+      const row = { node: n, depth, open, pages, total: items.length }
+      if (this.current === 'links') {
+        const levels = items.map(linkLevel)
+        row.level = levels.includes('error') ? 'error' : levels.includes('warn') ? 'warn' : levels.includes('pending') ? 'pending' : 'ok'
+        row.legend = ['ok', 'warn', 'error', 'pending']
+          .map(l => ({ level: l, count: count(levels, l) }))
+          .filter(l => l.count)
+          .map(l => ({ ...l, text: this.$t('visibilizer.count.links.' + (l.level === 'pending' ? (this.checking ? 'pending' : 'unchecked') : l.level), { count: l.count }) }))
+        return row
+      }
+      row.level = worst(items.map(this.levelOf))
+      row.legendLevel = worst(items.map(i => this.issuesLevel(i.issues.filter(x => x.key.startsWith('alt_')))))
+      row.legend = ['ok', 'warn', 'error']
+        .map(l => ({ level: l, count: items.filter(i => altLevel(i) === l).length }))
+        .filter(l => l.count)
+        .map(l => ({ ...l, text: this.countText('visibilizer.count.alts.' + l.level, l.count) }))
+      row.heavy = items.filter(i => i.issues.some(x => x.key === 'image_heavy')).length
+      row.thumbs = items.filter(i => i.thumb).slice(0, 4)
+      return row
+    },
+    // Clic sur une ligne : un parent se replie / se déplie, une page ouvre son tiroir
+    clickNode(row) {
+      if (row.node.children.length) this.$set(this.expanded, row.node.id, !row.open)
+      else this.openNode(row.node)
+    },
+    openNode(n) {
+      if (this.current === 'links') this.openLinks(n)
+      else this.openImages(n)
+    },
+    openLinks(n) {
+      this.$panel.drawer.open({
+        component: 'k-visibilizer-links-drawer',
+        props: {
+          icon: 'url',
+          title: n.title,
+          page: { id: n.id, title: n.title, path: n.path, panel: n.panel },
+          links: () => this.linkRows.filter(l => l.from.some(f => f.id === n.id)),
+          detail: this.linkDetail,
+        },
+        on: {
+          submit: () => this.$panel.drawer.close(),
+        },
+      })
+    },
+    openImages(group) {
+      this.$panel.drawer.open({
+        component: 'k-visibilizer-alts-drawer',
+        props: {
+          icon: 'image',
+          title: group.title,
+          page: { id: group.id, title: group.title, path: group.path, panel: group.panel },
+          images: group.items,
+          only: this.level !== 'all',
+          onSaved: rows => rows.forEach(row => this.$set(this.saved, row.id, row)),
+        },
+        on: {
+          submit: () => this.$panel.drawer.close(),
+        },
+      })
+    },
     issues(row) {
       if (row.checks) return [].concat(row.checks.title.issues, row.checks.description.issues, row.checks.image.issues)
       return row.issues || []
@@ -695,7 +1122,8 @@ const SeoView = {
         this.checking.done = Math.min(hrefs.length, i + BATCH)
       }
       this.checking = null
-      if (error) this.$panel.notification.error(error)
+      // Réponse qui n'est pas du JSON (PHP planté, délai dépassé) : Kirby la nomme « redirect »
+      if (error) this.$panel.notification.error(error.message === 'redirect' ? this.$t('visibilizer.link.crashed') : error)
     },
     fill() {
       this.$panel.dialog.open({
@@ -896,6 +1324,18 @@ const SeoView = {
               </button>
             </nav>
             <div class="k-vis-tools">
+              <nav v-if="modes[current]" class="k-vis-filters k-vis-modes">
+                <button
+                  v-for="m in ['pages', 'list']"
+                  :key="m"
+                  type="button"
+                  :aria-current="m === modes[current] ? 'true' : null"
+                  @click="setMode(m)"
+                >
+                  <k-icon :type="m === 'pages' ? 'folder' : 'list-bullet'" />
+                  {{ $t('visibilizer.images.' + m) }}
+                </button>
+              </nav>
               <button v-if="current === 'images' && fillable" type="button" class="k-vis-button" @click="fill">
                 <k-icon type="wand" />
                 <span>{{ $t('visibilizer.fill') }} ({{ fillable }})</span>
@@ -926,7 +1366,7 @@ const SeoView = {
               <span>{{ $t('visibilizer.col.index') }}</span>
               <span></span>
             </div>
-            <template v-for="row in rows">
+            <template v-for="row in visibleRows">
               <div :key="row.id" class="k-vis-row" :class="{ open: open[row.id] }" @click="toggle(row.id)">
                 <span class="k-vis-dot" :data-level="pageLevel(row)" :title="$t('visibilizer.level.' + pageLevel(row))"></span>
                 <span class="k-vis-cell-page">
@@ -961,6 +1401,51 @@ const SeoView = {
             </template>
           </div>
 
+          <!-- Par page (images, liens) : un parent se déplie, une page ouvre son tiroir -->
+          <div v-else-if="byPage" class="k-vis-table" data-tab="by-page" :data-kind="current">
+            <div class="k-vis-row k-vis-head">
+              <span></span>
+              <span v-if="current === 'images'"></span>
+              <span>{{ $t('visibilizer.col.page') }}</span>
+              <span>{{ $t(current === 'images' ? 'visibilizer.col.alt' : 'visibilizer.col.status') }}</span>
+              <span>{{ $t('visibilizer.tab.' + current) }}</span>
+              <span></span>
+            </div>
+            <div v-for="row in pageRows" :key="row.node.id" class="k-vis-row" :data-depth="row.depth" @click="clickNode(row)">
+              <span class="k-vis-dot" :data-level="row.level" :title="$t('visibilizer.level.' + (row.level === 'pending' ? 'ok' : row.level))"></span>
+              <span v-if="current === 'images'" class="k-vis-stack">
+                <img v-for="i in row.thumbs" :key="i.id" :src="i.thumb" alt="" loading="lazy" />
+              </span>
+              <span class="k-vis-cell-page k-vis-cell-tree" :style="{ paddingLeft: row.depth * 1.25 + 'rem' }">
+                <span class="k-vis-link">
+                  <k-icon v-if="row.node.children.length" :type="row.open ? 'angle-down' : 'angle-right'" class="k-vis-chevron" />
+                  {{ row.node.title }}
+                </span>
+                <span class="k-vis-path" :title="row.node.path">
+                  {{ row.node.path }}<template v-if="row.pages"> · {{ $t('visibilizer.subpages', { count: row.pages }) }}</template>
+                </span>
+              </span>
+              <span class="k-vis-cell-text k-vis-legend" :data-level="row.legendLevel || row.level">
+                <span v-for="l in row.legend" :key="l.level" :data-level="l.level">{{ l.text }}</span>
+              </span>
+              <span class="k-vis-cell-meta">
+                <span>{{ row.total }}</span>
+                <span v-if="row.heavy" class="k-vis-flag">{{ $t('visibilizer.images.heavy', { count: row.heavy }) }}</span>
+              </span>
+              <span class="k-vis-actions" @click.stop>
+                <button
+                  v-if="row.node.items.length"
+                  type="button"
+                  :title="$t(current === 'images' ? 'visibilizer.images.open' : 'visibilizer.links.open')"
+                  @click="openNode(row.node)"
+                >
+                  <k-icon :type="current === 'images' ? 'image' : 'url'" />
+                </button>
+                <k-link v-if="row.node.panel" :to="row.node.panel" :title="$t('visibilizer.open.panel')"><k-icon type="edit" /></k-link>
+              </span>
+            </div>
+          </div>
+
           <!-- Images -->
           <div v-else-if="current === 'images'" class="k-vis-table" data-tab="images">
             <div class="k-vis-row k-vis-head">
@@ -971,7 +1456,7 @@ const SeoView = {
               <span>{{ $t('visibilizer.col.weight') }}</span>
               <span></span>
             </div>
-            <div v-for="row in rows" :key="row.id" class="k-vis-row">
+            <div v-for="row in visibleRows" :key="row.id" class="k-vis-row">
               <span class="k-vis-dot" :data-level="levelOf(row)" :title="row.issues.map(issue).join(' · ') || $t('visibilizer.level.ok')"></span>
               <span class="k-vis-cell-thumb"><img v-if="row.thumb" :src="row.thumb" alt="" loading="lazy" /></span>
               <span class="k-vis-cell-page">
@@ -1006,7 +1491,7 @@ const SeoView = {
               <span>{{ $t('visibilizer.col.from') }}</span>
               <span></span>
             </div>
-            <template v-for="row in rows">
+            <template v-for="row in visibleRows">
               <div :key="row.href" class="k-vis-row" :class="{ open: open[row.href] }" @click="row.from.length > 1 && toggle(row.href)">
                 <span class="k-vis-cell-status">
                   <span class="k-vis-dot" :data-level="row.result ? row.result.level : 'pending'"></span>
@@ -1030,6 +1515,14 @@ const SeoView = {
               </ul>
             </template>
           </div>
+          <button
+            v-if="rows.length > limit && !byPage"
+            type="button"
+            class="k-vis-button k-vis-more"
+            @click="limit += step"
+          >
+            {{ $t('visibilizer.showMore', { count: Math.min(step, rows.length - limit), total: rows.length - limit }) }}
+          </button>
         </section>
 
         <p class="k-vis-footnote">{{ $t('visibilizer.footnote') }}</p>
@@ -1050,5 +1543,7 @@ panel.plugin('rllngr/kirby-visibilizer', {
   components: {
     'k-visibilizer-preview': SeoPreview,
     'k-visibilizer-seo-view': SeoView,
+    'k-visibilizer-alts-drawer': AltsDrawer,
+    'k-visibilizer-links-drawer': LinksDrawer,
   },
 })

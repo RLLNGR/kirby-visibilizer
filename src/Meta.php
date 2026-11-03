@@ -51,7 +51,7 @@ class Meta
      */
     protected function homeTitle(): string
     {
-        if ($this->model instanceof Page && $value = $this->field('seo_title', 'metaTemplate')) {
+        if ($this->model instanceof Page && $value = $this->field('seo_title', 'metaTitle')) {
             return $value;
         }
 
@@ -63,7 +63,7 @@ class Meta
      */
     protected function pageTitle(): string
     {
-        return $this->field('seo_title', 'metaTemplate')
+        return $this->field('seo_title', 'metaTitle')
             ?: $this->fallback('title')['value']
             ?: $this->model->title()->value();
     }
@@ -135,7 +135,8 @@ class Meta
 
     public function ogTitle(): string
     {
-        $override = $this->field('og_title', 'ogTemplate');
+        // kirby-seo : ogTitle sur les pages, ogTemplate sur le site
+        $override = $this->field('og_title', $this->model instanceof Site ? 'ogTemplate' : 'ogTitle');
         if ($override) return $override;
 
         if ($this->isHome()) {
@@ -336,7 +337,7 @@ class Meta
     public function sources(): array
     {
         $title = match (true) {
-            $this->field('seo_title', 'metaTemplate') !== ''                           => 'custom',
+            $this->field('seo_title', $this->model instanceof Site ? 'metaTemplate' : 'metaTitle') !== '' => 'custom',
             $this->isHome() && $this->siteField('seo_title', 'metaTemplate') !== ''    => 'custom',
             !$this->isHome() && $this->fallback('title')['field'] !== null             => 'field',
             default                                                                    => 'default',

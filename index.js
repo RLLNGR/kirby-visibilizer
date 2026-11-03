@@ -364,6 +364,178 @@ const CARDS = [
 const scoreColor = score => (score === null ? 'blue' : score >= 75 ? 'green' : score >= 50 ? 'orange' : 'red')
 
 const count = (items, level) => items.filter(l => l === level).length
+
+// Onglets Images et Liens : regroupés par page (défaut) ou en liste, choix gardé dans le navigateur
+const GROUPED = ['images', 'links']
+const readMode = tab => {
+  try {
+    return window.localStorage.getItem('visibilizer.' + tab) === 'list' ? 'list' : 'pages'
+  } catch (e) {
+    return 'pages'
+  }
+}
+
+// Niveau d'un lien : celui de sa vérification, « pending » tant qu'il n'est pas vérifié
+const linkLevel = link => (link.result ? link.result.level : 'pending')
+
+// Lignes affichées d'un coup dans les tableaux, puis « afficher plus »
+const LIMIT = 100
+
+const altLevel = image => (image.alt ? 'ok' : image.generated ? 'warn' : 'error')
+
+// Tiroir « images de la page » : un champ texte alternatif par image, enregistré en quittant le champ
+const AltsDrawer = {
+  props: {
+    // Props de k-drawer
+    current: { default: true, type: Boolean },
+    icon: String,
+    id: String,
+    options: Array,
+    size: { default: 'large', type: String },
+    title: String,
+    visible: { default: false, type: Boolean },
+
+    page: Object,
+    images: Array,
+    only: Boolean,
+    // Prévient la vue de chaque enregistrement : une prop plutôt qu'un événement, car Kirby retire
+    // les écouteurs du tiroir dès sa fermeture, alors qu'un enregistrement peut finir après
+    onSaved: { type: Function, default: () => {} },
+  },
+  emits: ['cancel', 'submit'],
+  data() {
+    return {
+      items: this.images.map(i => ({ ...i })),
+      drafts: Object.fromEntries(this.images.map(i => [i.id, i.alt])),
+      saving: {},
+      done: {},
+      filling: false,
+      // Images sans texte au moment du filtre : elles restent affichées une fois remplies
+      pinned: this.only ? this.images.filter(i => !i.alt).map(i => i.id) : null,
+    }
+  },
+  computed: {
+    shown() {
+      return this.pinned ? this.items.filter(i => this.pinned.includes(i.id)) : this.items
+    },
+    missing() {
+      return this.items.filter(i => !i.alt).length
+    },
+    fillable() {
+      return this.items.filter(i => !i.alt && i.generated).length
+    },
+  },
+  methods: {
+    level: altLevel,
+    heavy(item) {
+      return item.issues.some(i => i.key === 'image_heavy')
+    },
+    toggleOnly() {
+      this.pinned = this.pinned ? null : this.items.filter(i => !i.alt).map(i => i.id)
+    },
+    replace(rows) {
+      for (const row of rows) {
+        const n = this.items.findIndex(i => i.id === row.id)
+        if (n === -1) continue
+        this.$set(this.items, n, row)
+        this.$set(this.drafts, row.id, row.alt)
+      }
+      this.onSaved(rows)
+    },
+    // Fermeture du tiroir alors qu'un champ a encore le focus : le blur n'arrive pas toujours
+    flush() {
+      for (const item of this.items) this.save(item)
+    },
+    async save(item) {
+      const value = (this.drafts[item.id] || '').trim()
+      if (value === item.alt || this.saving[item.id]) return
+      this.$set(this.saving, item.id, true)
+      try {
+        const row = await this.$api.post('rllngr/visibilizer-audit/alt', { id: item.id, alt: value })
+        this.replace([row])
+        this.$set(this.done, item.id, true)
+      } catch (e) {
+        this.$panel.notification.error(e)
+      } finally {
+        this.$set(this.saving, item.id, false)
+      }
+    },
+    useGenerated(item) {
+      this.$set(this.drafts, item.id, item.generated)
+      this.save(item)
+    },
+    // Entrée : enregistre et passe à l'image suivante (Maj + Entrée pour un retour à la ligne)
+    next(event) {
+      const li = event.target.closest('li')
+      event.target.blur()
+      li?.nextElementSibling?.querySelector('textarea')?.focus()
+    },
+    async fill() {
+      this.filling = true
+      try {
+        const res = await this.$api.post('rllngr/visibilizer-audit/alts', { parent: this.page.id })
+        this.replace(res.rows)
+        this.$panel.notification.success(this.$t('visibilizer.fill.done', { count: res.done }))
+      } catch (e) {
+        this.$panel.notification.error(e)
+      } finally {
+        this.filling = false
+      }
+    },
+  },
+  watch: {
+    visible(visible) {
+      if (!visible) this.flush()
+    },
+  },
+  beforeDestroy() {
+    this.flush()
+  },
+  ...(() => {
+var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-drawer',_vm._b({staticClass:"k-vis-alts-drawer",on:{"cancel":function($event){return _vm.$emit('cancel')},"submit":function($event){return _vm.$emit('submit')}},scopedSlots:_vm._u([{key:"options",fn:function(){return [(_vm.fillable)?_c('k-button',{staticClass:"k-drawer-option",attrs:{"icon":"wand","text":_vm.$t('visibilizer.fill') + ' (' + _vm.fillable + ')',"disabled":_vm.filling},on:{"click":_vm.fill}}):_vm._e(),_c('k-button',{staticClass:"k-drawer-option",attrs:{"icon":"filter","theme":_vm.pinned ? 'notice' : null,"text":_vm.$t('visibilizer.alts.only'),"disabled":!_vm.pinned && !_vm.missing},on:{"click":_vm.toggleOnly}}),_c('k-button',{staticClass:"k-drawer-option",attrs:{"icon":"edit","link":_vm.page.panel,"title":_vm.$t('visibilizer.open.panel')}})]},proxy:true}])},'k-drawer',_vm.$props,false),[_c('p',{staticClass:"k-vis-alts-summary"},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.alts.summary', { count: _vm.items.length, missing: _vm.missing }))+" "),_c('span',{staticClass:"k-vis-alts-path"},[_vm._v(_vm._s(_vm.page.path))])]),(!_vm.shown.length)?_c('p',{staticClass:"k-vis-alts-empty"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty.filter')))]):_vm._e(),_c('ul',{staticClass:"k-vis-alts"},_vm._l((_vm.shown),function(item){return _c('li',{key:item.id,attrs:{"data-level":_vm.level(item)}},[_c('a',{staticClass:"k-vis-alts-thumb",attrs:{"href":item.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[(item.thumb)?_c('img',{attrs:{"src":item.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('div',{staticClass:"k-vis-alts-body"},[_c('div',{staticClass:"k-vis-alts-head"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.level(item)}}),_c('k-link',{staticClass:"k-vis-alts-name",attrs:{"to":item.panel}},[_vm._v(_vm._s(item.filename))]),_c('span',{staticClass:"k-vis-alts-meta",attrs:{"data-heavy":_vm.heavy(item) ? 'true' : null}},[_vm._v(_vm._s(item.niceSize)+" · "+_vm._s(item.width)+" × "+_vm._s(item.height))])],1),_c('textarea',{attrs:{"rows":"2","placeholder":item.generated || _vm.$t('visibilizer.alts.placeholder')},domProps:{"value":_vm.drafts[item.id]},on:{"input":function($event){_vm.$set(_vm.drafts, item.id, $event.target.value); _vm.$set(_vm.done, item.id, false)},"blur":function($event){return _vm.save(item)},"keydown":function($event){if(!$event.type.indexOf('key')&&_vm._k($event.keyCode,"enter",13,$event.key,"Enter"))return null;if($event.ctrlKey||$event.shiftKey||$event.altKey||$event.metaKey)return null;$event.preventDefault();return _vm.next.apply(null, arguments)}}}),_c('div',{staticClass:"k-vis-alts-foot"},[(!_vm.drafts[item.id] && item.generated)?_c('button',{staticClass:"k-vis-alts-use",attrs:{"type":"button"},on:{"click":function($event){return _vm.useGenerated(item)}}},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.alts.use'))+" ")]):_vm._e(),(_vm.saving[item.id])?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.settings.saving')))]):(_vm.done[item.id])?_c('span',{attrs:{"data-level":"ok"}},[_vm._v(_vm._s(_vm.$t('visibilizer.alts.saved')))]):_vm._e()])])])}),0)])
+}
+var staticRenderFns = []
+return { render, staticRenderFns }
+})(),
+}
+
+// Tiroir « liens de la page » : leur état, lu en direct dans la vue (la vérification peut être en cours)
+const LinksDrawer = {
+  props: {
+    // Props de k-drawer
+    current: { default: true, type: Boolean },
+    icon: String,
+    id: String,
+    options: Array,
+    size: { default: 'large', type: String },
+    title: String,
+    visible: { default: false, type: Boolean },
+
+    page: Object,
+    // Fonctions de la vue : les liens de la page, le texte d'état d'un lien
+    links: Function,
+    detail: Function,
+  },
+  emits: ['cancel', 'submit'],
+  computed: {
+    rows() {
+      return this.links()
+    },
+    broken() {
+      return this.rows.filter(l => linkLevel(l) === 'error').length
+    },
+  },
+  methods: {
+    level: linkLevel,
+  },
+  ...(() => {
+var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-drawer',_vm._b({staticClass:"k-vis-alts-drawer",on:{"cancel":function($event){return _vm.$emit('cancel')},"submit":function($event){return _vm.$emit('submit')}},scopedSlots:_vm._u([{key:"options",fn:function(){return [_c('k-button',{staticClass:"k-drawer-option",attrs:{"icon":"edit","link":_vm.page.panel,"title":_vm.$t('visibilizer.open.panel')}})]},proxy:true}])},'k-drawer',_vm.$props,false),[_c('p',{staticClass:"k-vis-alts-summary"},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.links.summary', { count: _vm.rows.length, broken: _vm.broken }))+" "),_c('span',{staticClass:"k-vis-alts-path"},[_vm._v(_vm._s(_vm.page.path))])]),_c('ul',{staticClass:"k-vis-alts k-vis-links"},_vm._l((_vm.rows),function(row){return _c('li',{key:row.href,attrs:{"data-level":_vm.level(row)}},[_c('div',{staticClass:"k-vis-alts-body"},[_c('div',{staticClass:"k-vis-alts-head"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.level(row)}}),_c('a',{staticClass:"k-vis-alts-name",attrs:{"href":row.result && row.result.internal ? row.label : row.href,"target":"_blank","rel":"noopener","title":row.href}},[_vm._v(_vm._s(row.label))]),_c('span',{staticClass:"k-vis-alts-meta"},[_vm._v(_vm._s(row.result && row.result.code ? row.result.code : '—'))])]),_c('div',{staticClass:"k-vis-alts-foot"},[_c('span',[_vm._v(_vm._s(_vm.$t(row.internal ? 'visibilizer.internal' : 'visibilizer.external'))+" · "+_vm._s(_vm.detail(row)))]),(row.from.length > 1)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.links.elsewhere', { count: row.from.length - 1 })))]):_vm._e()])])])}),0)])
+}
+var staticRenderFns = []
+return { render, staticRenderFns }
+})(),
+}
+
 const SeoView = {
   props: {
     tab: String,
@@ -384,9 +556,18 @@ const SeoView = {
       fallbacks: readPref(),
       form: { ...this.settings.values },
       saving: false,
+      modes: Object.fromEntries(GROUPED.map(tab => [tab, readMode(tab)])),
+      expanded: {},
+      saved: {},
+      limit: LIMIT,
+      step: LIMIT,
     }
   },
   computed: {
+    // Images, avec les textes enregistrés depuis le tiroir sans recharger la vue
+    imageRows() {
+      return this.images.map(i => this.saved[i.id] || i)
+    },
     linkRows() {
       return this.links.map(l => ({ ...l, result: this.results[l.href] || l.result }))
     },
@@ -395,7 +576,7 @@ const SeoView = {
       return {
         titles: this.pages.map(p => this.checkLevel(p.checks.title)),
         descriptions: this.pages.map(p => this.checkLevel(p.checks.description)),
-        alts: this.images.map(i => this.issuesLevel(i.issues.filter(x => x.key.startsWith('alt_')))),
+        alts: this.imageRows.map(i => this.issuesLevel(i.issues.filter(x => x.key.startsWith('alt_')))),
         links: this.linkRows.map(l => (l.result ? l.result.level : null)),
       }
     },
@@ -408,7 +589,7 @@ const SeoView = {
         const prefix = card.key === 'links' ? 'links.' : card.key === 'alts' ? 'alts.' : ''
         const legend = ['ok', 'warn', 'error', 'pending']
           .filter(l => counts[l])
-          .map(l => ({ level: l, text: this.$t('visibilizer.count.' + (l === 'pending' ? 'links.' + (this.checking ? 'pending' : 'unchecked') : prefix + l), { count: counts[l] }) }))
+          .map(l => ({ level: l, text: this.countText('visibilizer.count.' + (l === 'pending' ? 'links.' + (this.checking ? 'pending' : 'unchecked') : prefix + l), counts[l]) }))
         return {
           ...card,
           color: scoreColor(score),
@@ -509,10 +690,90 @@ const SeoView = {
     },
     // Images sans texte alternatif mais avec un texte généré par le modèle
     fillable() {
-      return this.images.filter(i => !i.alt && i.generated).length
+      return this.imageRows.filter(i => !i.alt && i.generated).length
+    },
+    visibleRows() {
+      return this.rows.slice(0, this.limit)
+    },
+    // Onglet regroupé par page
+    byPage() {
+      return GROUPED.includes(this.current) && this.modes[this.current] === 'pages'
+    },
+    pageIndex() {
+      return Object.fromEntries(this.pages.map((p, n) => [p.id, { ...p, rank: n }]))
+    },
+    /*
+     * Pages qui ont au moins un élément dans le filtre, rangées sous leurs parents (projects → projects/ben…).
+     * Un parent sans élément à lui apparaît quand même, pour regrouper ses enfants ; les compteurs d'un
+     * parent portent sur toutes ses sous-pages, ceux d'une page sur tous ses éléments (pas seulement le filtre).
+     */
+    pageTree() {
+      if (!this.byPage) return []
+      const own = {}
+      for (const row of this.source(this.current)) {
+        for (const page of this.pagesOf(row)) (own[page.id] ||= { page, items: [] }).items.push(row)
+      }
+      const nodes = {}
+      const node = id => {
+        if (nodes[id]) return nodes[id]
+        const info = own[id]?.page || this.pageIndex[id] || { id, title: id.split('/').pop(), path: '/' + id, panel: null }
+        const slash = id.lastIndexOf('/')
+        return (nodes[id] = {
+          id,
+          title: info.title,
+          path: info.path,
+          panel: info.panel,
+          rank: id === 'site' ? -1 : this.pageIndex[id]?.rank ?? Infinity,
+          parent: slash === -1 ? null : id.slice(0, slash),
+          items: own[id]?.items || [],
+          children: [],
+        })
+      }
+      for (const row of this.rows) {
+        for (const page of this.pagesOf(row)) {
+          let n = node(page.id)
+          while (n.parent) {
+            const p = node(n.parent)
+            if (!p.children.includes(n)) p.children.push(n)
+            n = p
+          }
+        }
+      }
+      const sort = list => list.sort((a, b) => a.rank - b.rank || a.path.localeCompare(b.path))
+      for (const n of Object.values(nodes)) sort(n.children)
+      return sort(Object.values(nodes).filter(n => !n.parent))
+    },
+    // Lignes affichées : l'arbre déplié (tout est ouvert pendant une recherche ou un filtre)
+    pageRows() {
+      const all = this.query.trim() || this.level !== 'all'
+      const rows = []
+      const walk = (list, depth) => {
+        for (const n of list) {
+          const open = all || this.expanded[n.id]
+          rows.push(this.summary(n, depth, open))
+          if (n.children.length && open) walk(n.children, depth + 1)
+        }
+      }
+      walk(this.pageTree, 0)
+      return rows
     },
     pendingLinks() {
       return this.linkRows.filter(l => !l.internal && !l.result).map(l => l.href)
+    },
+  },
+  watch: {
+    // Vue rechargée : les textes enregistrés depuis le tiroir y sont déjà
+    images() {
+      this.saved = {}
+    },
+    current() {
+      this.limit = LIMIT
+    },
+    level() {
+      this.limit = LIMIT
+    },
+    query() {
+      this.limit = LIMIT
     },
   },
   mounted() {
@@ -521,7 +782,7 @@ const SeoView = {
   },
   methods: {
     source(tab) {
-      return tab === 'pages' ? this.pages : tab === 'images' ? this.images : this.linkRows
+      return tab === 'pages' ? this.pages : tab === 'images' ? this.imageRows : this.linkRows
     },
     levelOf(row) {
       if (this.current === 'links' || row.href) return row.result ? row.result.level : 'pending'
@@ -568,6 +829,99 @@ const SeoView = {
     toggle(key) {
       this.$set(this.open, key, !this.open[key])
     },
+    // Compteurs des textes alternatifs : « 1 image décrite » / « 3 images décrites »
+    countText(key, count) {
+      return this.$t(key + (count === 1 && key.startsWith('visibilizer.count.alts.') ? '.one' : ''), { count })
+    },
+    setMode(mode) {
+      this.$set(this.modes, this.current, mode)
+      this.limit = LIMIT
+      try {
+        window.localStorage.setItem('visibilizer.' + this.current, mode)
+      } catch (e) {
+        /* préférence non gardée */
+      }
+    },
+    pagesOf(row) {
+      return row.href ? row.from : [row.parent]
+    },
+    // Compteurs d'une ligne de l'arbre : la page et toutes ses sous-pages, chaque élément compté une fois
+    summary(n, depth, open) {
+      const seen = new Set()
+      const items = []
+      const collect = node => {
+        for (const i of node.items) {
+          const key = i.href || i.id
+          if (seen.has(key)) continue
+          seen.add(key)
+          items.push(i)
+        }
+        node.children.forEach(collect)
+      }
+      collect(n)
+      const pages = (function size(node) {
+        return node.children.reduce((sum, c) => sum + 1 + size(c), 0)
+      })(n)
+      const row = { node: n, depth, open, pages, total: items.length }
+      if (this.current === 'links') {
+        const levels = items.map(linkLevel)
+        row.level = levels.includes('error') ? 'error' : levels.includes('warn') ? 'warn' : levels.includes('pending') ? 'pending' : 'ok'
+        row.legend = ['ok', 'warn', 'error', 'pending']
+          .map(l => ({ level: l, count: count(levels, l) }))
+          .filter(l => l.count)
+          .map(l => ({ ...l, text: this.$t('visibilizer.count.links.' + (l.level === 'pending' ? (this.checking ? 'pending' : 'unchecked') : l.level), { count: l.count }) }))
+        return row
+      }
+      row.level = worst(items.map(this.levelOf))
+      row.legendLevel = worst(items.map(i => this.issuesLevel(i.issues.filter(x => x.key.startsWith('alt_')))))
+      row.legend = ['ok', 'warn', 'error']
+        .map(l => ({ level: l, count: items.filter(i => altLevel(i) === l).length }))
+        .filter(l => l.count)
+        .map(l => ({ ...l, text: this.countText('visibilizer.count.alts.' + l.level, l.count) }))
+      row.heavy = items.filter(i => i.issues.some(x => x.key === 'image_heavy')).length
+      row.thumbs = items.filter(i => i.thumb).slice(0, 4)
+      return row
+    },
+    // Clic sur une ligne : un parent se replie / se déplie, une page ouvre son tiroir
+    clickNode(row) {
+      if (row.node.children.length) this.$set(this.expanded, row.node.id, !row.open)
+      else this.openNode(row.node)
+    },
+    openNode(n) {
+      if (this.current === 'links') this.openLinks(n)
+      else this.openImages(n)
+    },
+    openLinks(n) {
+      this.$panel.drawer.open({
+        component: 'k-visibilizer-links-drawer',
+        props: {
+          icon: 'url',
+          title: n.title,
+          page: { id: n.id, title: n.title, path: n.path, panel: n.panel },
+          links: () => this.linkRows.filter(l => l.from.some(f => f.id === n.id)),
+          detail: this.linkDetail,
+        },
+        on: {
+          submit: () => this.$panel.drawer.close(),
+        },
+      })
+    },
+    openImages(group) {
+      this.$panel.drawer.open({
+        component: 'k-visibilizer-alts-drawer',
+        props: {
+          icon: 'image',
+          title: group.title,
+          page: { id: group.id, title: group.title, path: group.path, panel: group.panel },
+          images: group.items,
+          only: this.level !== 'all',
+          onSaved: rows => rows.forEach(row => this.$set(this.saved, row.id, row)),
+        },
+        on: {
+          submit: () => this.$panel.drawer.close(),
+        },
+      })
+    },
     issues(row) {
       if (row.checks) return [].concat(row.checks.title.issues, row.checks.description.issues, row.checks.image.issues)
       return row.issues || []
@@ -600,7 +954,8 @@ const SeoView = {
         this.checking.done = Math.min(hrefs.length, i + BATCH)
       }
       this.checking = null
-      if (error) this.$panel.notification.error(error)
+      // Réponse qui n'est pas du JSON (PHP planté, délai dépassé) : Kirby la nomme « redirect »
+      if (error) this.$panel.notification.error(error.message === 'redirect' ? this.$t('visibilizer.link.crashed') : error)
     },
     fill() {
       this.$panel.dialog.open({
@@ -652,7 +1007,7 @@ const SeoView = {
     },
   },
   ...(() => {
-var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-panel-inside',{staticClass:"k-visibilizer-view"},[_c('div',{staticClass:"k-vis"},[_c('header',{staticClass:"k-vis-ink k-vis-header"},[_c('h1',[_vm._v(_vm._s(_vm.$t('visibilizer.seo')))]),_c('nav',{staticClass:"k-vis-tabs"},_vm._l((_vm.tabs),function(t){return _c('button',{key:t.key,attrs:{"type":"button","aria-current":t.key === _vm.current ? 'true' : null},on:{"click":function($event){return _vm.select(t.key)}}},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.tab.' + t.key))+" "),(t.count !== null)?_c('span',{staticClass:"k-vis-tab-count"},[_vm._v(_vm._s(t.count))]):_vm._e()])}),0)]),(_vm.current !== 'settings')?_c('div',{staticClass:"k-vis-cards"},_vm._l((_vm.cards),function(c){return _c('button',{key:c.key,staticClass:"k-vis-card",attrs:{"type":"button","data-color":c.color},on:{"click":function($event){return _vm.select(c.tab, c.counts.error ? 'error' : 'all')}}},[_c('span',{staticClass:"k-vis-card-dot",attrs:{"data-size":c.text.length > 3 ? 's' : 'l'}},[_c('span',{staticClass:"k-vis-card-value"},[_vm._v(_vm._s(c.text))]),_c('span',{staticClass:"k-vis-card-unit"},[_vm._v(_vm._s(c.unit))])]),_c('span',{staticClass:"k-vis-card-label"},[_vm._v(_vm._s(_vm.$t('visibilizer.card.' + c.key)))]),_c('span',{staticClass:"k-vis-card-bar",attrs:{"aria-hidden":"true"}},_vm._l((c.segments),function(s){return _c('span',{key:s.level,style:({ width: s.width + '%' }),attrs:{"data-level":s.level}})}),0),_c('span',{staticClass:"k-vis-card-legend"},[_vm._l((c.legend),function(l){return _c('span',{key:l.level,attrs:{"data-level":l.level}},[_vm._v(_vm._s(l.text))])}),(!c.total)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):_vm._e()],2)])}),0):_vm._e(),(_vm.current !== 'settings')?_c('div',{staticClass:"k-vis-mode"},[_c('button',{staticClass:"k-vis-switch",attrs:{"type":"button","role":"switch","aria-checked":_vm.fallbacks ? 'true' : 'false'},on:{"click":_vm.toggleFallbacks}},[_c('span',{staticClass:"k-vis-switch-track"},[_c('span',{staticClass:"k-vis-switch-thumb"})]),_vm._v(" "+_vm._s(_vm.$t('visibilizer.fallbacks'))+" ")]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t(_vm.fallbacks ? 'visibilizer.fallbacks.on' : 'visibilizer.fallbacks.off')))])]):_vm._e(),(_vm.current === 'settings')?[_vm._l((_vm.settingsGroups),function(group,i){return [_c('section',{key:group.key,staticClass:"k-vis-block k-vis-settings"},[(i === 0)?_c('div',{staticClass:"k-vis-settings-split"},[_c('k-visibilizer-preview',{staticClass:"k-vis-settings-preview",attrs:{"label":_vm.$t('visibilizer.settings.preview'),"live-values":_vm.form,"live-context":_vm.previewContext,"initial-tab":"social"}}),_c('k-fieldset',{attrs:{"fields":group.fields,"value":_vm.form,"novalidate":true},on:{"input":function($event){_vm.form = $event}}})],1):[_c('k-fieldset',{attrs:{"fields":group.fields,"value":_vm.form,"novalidate":true},on:{"input":function($event){_vm.form = $event}}}),(group.key === 'icon_headline')?_c('div',{staticClass:"k-vis-icon-state"},[(_vm.iconPreviews.length)?_c('div',{staticClass:"k-vis-icon-previews"},_vm._l((_vm.iconPreviews),function(p){return _c('figure',{key:p.key,attrs:{"data-kind":p.key}},[_c('span',{staticClass:"k-vis-icon-frame"},[_c('img',{attrs:{"src":p.src,"alt":""}})]),_c('figcaption',[_vm._v(_vm._s(p.label)+" "),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(p.size))])])])}),0):_vm._e(),_c('ul',{staticClass:"k-vis-icon-checks"},_vm._l((_vm.settings.icons.checks),function(c){return _c('li',{key:c.key + (c.data ? c.data.file || '' : '')},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":c.level}}),_vm._v(" "+_vm._s(_vm.$t('visibilizer.icon.' + c.key, c.data || {}))+" ")])}),0)]):_vm._e()]],2)]}),_c('div',{staticClass:"k-vis-block k-vis-settings-bar"},[(!_vm.settings.editable)?_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.readonly')))]):(_vm.settingsChanged)?_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.unsaved')))]):_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.stored')))]),_c('span',{staticClass:"k-vis-tools"},[(_vm.settingsChanged)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.resetSettings}},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.reset')))]):_vm._e(),_c('button',{staticClass:"k-vis-button k-vis-button-primary",attrs:{"type":"button","disabled":!_vm.settingsChanged || _vm.saving || !_vm.settings.editable},on:{"click":_vm.saveSettings}},[_vm._v(" "+_vm._s(_vm.$t(_vm.saving ? 'visibilizer.settings.saving' : 'visibilizer.settings.save'))+" ")])])]),_c('section',{staticClass:"k-vis-block"},[_c('div',{staticClass:"k-vis-files-head"},[_c('h2',{staticClass:"k-vis-caption"},[_vm._v(_vm._s(_vm.$t('visibilizer.files')))]),(_vm.settings.editable)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.uploadFiles}},[_c('k-icon',{attrs:{"type":"upload"}}),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.files.upload')))])],1):_vm._e()]),(!_vm.settings.files.length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):_c('ul',{staticClass:"k-vis-files"},_vm._l((_vm.settings.files),function(file){return _c('li',{key:file.id},[_c('k-link',{staticClass:"k-vis-files-thumb",attrs:{"to":file.panel}},[(file.thumb)?_c('img',{attrs:{"src":file.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('span',{staticClass:"k-vis-files-info"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":file.panel}},[_vm._v(_vm._s(file.filename))]),_c('span',{staticClass:"k-vis-path"},[_vm._v(_vm._s(file.niceSize)),(file.size)?[_vm._v(" · "+_vm._s(file.size))]:_vm._e()],2),_c('span',{staticClass:"k-vis-files-used"},[_vm._l((_vm.fileUsage(file)),function(label){return _c('span',{key:label,staticClass:"k-vis-badge"},[_vm._v(_vm._s(label))])}),(!file.used.length)?_c('span',{staticClass:"k-vis-badge k-vis-badge-warn"},[_vm._v(_vm._s(_vm.$t('visibilizer.files.unused')))]):_vm._e()],2)],1)],1)}),0)]),_c('section',{staticClass:"k-vis-block"},[_c('h2',{staticClass:"k-vis-caption"},[_vm._v(_vm._s(_vm.$t('visibilizer.config')))]),_c('dl',{staticClass:"k-vis-config"},[_vm._l((_vm.configRows),function(row){return [_c('dt',{key:row.key + ':k'},[_vm._v(_vm._s(row.key))]),_c('dd',{key:row.key + ':v'},[_vm._v(_vm._s(row.value))])]})],2)])]:_c('section',{staticClass:"k-vis-block"},[_c('div',{staticClass:"k-vis-toolbar"},[_c('nav',{staticClass:"k-vis-filters"},_vm._l((_vm.filters),function(f){return _c('button',{key:f.key,attrs:{"type":"button","data-level":f.key,"aria-current":f.key === _vm.level ? 'true' : null,"disabled":!f.count && f.key !== 'all'},on:{"click":function($event){_vm.level = f.key}}},[(f.key !== 'all')?_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":f.key}}):_vm._e(),_vm._v(" "+_vm._s(_vm.$t(f.key === 'all' ? 'visibilizer.filter.all' : 'visibilizer.level.' + f.key))+" "),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(f.count))])])}),0),_c('div',{staticClass:"k-vis-tools"},[(_vm.current === 'images' && _vm.fillable)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.fill}},[_c('k-icon',{attrs:{"type":"wand"}}),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.fill'))+" ("+_vm._s(_vm.fillable)+")")])],1):_vm._e(),(_vm.current === 'links' && _vm.links.length)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button","disabled":!!_vm.checking},on:{"click":_vm.recheck}},[_c('k-icon',{attrs:{"type":"refresh"}}),(_vm.checking)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.checking', _vm.checking)))]):_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.recheck')))])],1):_vm._e(),_c('label',{staticClass:"k-vis-search"},[_c('k-icon',{attrs:{"type":"search"}}),_c('input',{directives:[{name:"model",rawName:"v-model",value:(_vm.query),expression:"query"}],attrs:{"type":"search","placeholder":_vm.$t('visibilizer.search')},domProps:{"value":(_vm.query)},on:{"input":function($event){if($event.target.composing)return;_vm.query=$event.target.value}}})],1)])]),(!_vm.source(_vm.current).length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):(!_vm.rows.length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty.filter')))]):(_vm.current === 'pages')?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"pages"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.page')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.title')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.description')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.image')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.index')))]),_c('span')]),_vm._l((_vm.rows),function(row){return [_c('div',{key:row.id,staticClass:"k-vis-row",class:{ open: _vm.open[row.id] },on:{"click":function($event){return _vm.toggle(row.id)}}},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.pageLevel(row),"title":_vm.$t('visibilizer.level.' + _vm.pageLevel(row))}}),_c('span',{staticClass:"k-vis-cell-page"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.panel},nativeOn:{"click":function($event){$event.stopPropagation();}}},[_vm._v(_vm._s(row.title))]),_c('span',{staticClass:"k-vis-path",attrs:{"title":row.path}},[_vm._v(_vm._s(row.path))])],1),_c('span',{staticClass:"k-vis-cell-text",attrs:{"data-level":_vm.checkLevel(row.checks.title)}},[(row.metaTitle.source !== 'custom')?_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.sourceLabel(row.metaTitle)))]):_vm._e(),_c('span',{class:{ 'k-vis-muted': row.metaTitle.source !== 'custom' }},[_vm._v(_vm._s(row.metaTitle.value))])]),_c('span',{staticClass:"k-vis-cell-text k-vis-clamp",attrs:{"data-level":_vm.checkLevel(row.checks.description)}},[(row.description.source !== 'custom' && row.description.source !== 'none')?_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.sourceLabel(row.description)))]):_vm._e(),(row.description.value)?_c('span',{class:{ 'k-vis-muted': row.description.source !== 'custom' }},[_vm._v(_vm._s(row.description.value))]):_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.none')))])]),_c('span',{staticClass:"k-vis-cell-thumb",attrs:{"data-level":_vm.checkLevel(row.checks.image)}},[(row.image && row.image.thumb)?_c('img',{attrs:{"src":row.image.thumb,"alt":"","loading":"lazy"}}):_vm._e(),(row.image && row.image.source !== 'custom')?_c('span',{staticClass:"k-vis-badge k-vis-thumb-badge",attrs:{"title":_vm.sourceLabel(row.image)}},[_vm._v(_vm._s(row.image.source === 'field' ? row.image.field : _vm.sourceLabel(row.image)))]):_vm._e()]),_c('span',{staticClass:"k-vis-cell-index"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.indexable ? 'ok' : 'off',"title":row.indexable ? _vm.$t('visibilizer.indexable') : _vm.$t('visibilizer.noindex', { robots: row.robots })}})]),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[_c('k-link',{attrs:{"to":row.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1),_c('a',{attrs:{"href":row.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)],1)]),(_vm.open[row.id])?_c('ul',{key:row.id + ':issues',staticClass:"k-vis-issues"},[_vm._l((_vm.issues(row)),function(i,n){return _c('li',{key:n,class:{ 'k-vis-muted': !_vm.counts(i) }},[_vm._v(_vm._s(_vm.issue(i)))])}),(!_vm.issues(row).length)?_c('li',{attrs:{"data-level":"ok"}},[_vm._v(_vm._s(_vm.$t('visibilizer.level.ok')))]):_vm._e()],2):_vm._e()]})],2):(_vm.current === 'images')?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"images"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),_c('span'),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.file')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.alt')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.weight')))]),_c('span')]),_vm._l((_vm.rows),function(row){return _c('div',{key:row.id,staticClass:"k-vis-row"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.levelOf(row),"title":row.issues.map(_vm.issue).join(' · ') || _vm.$t('visibilizer.level.ok')}}),_c('span',{staticClass:"k-vis-cell-thumb"},[(row.thumb)?_c('img',{attrs:{"src":row.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('span',{staticClass:"k-vis-cell-page"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.panel}},[_vm._v(_vm._s(row.filename))]),_c('k-link',{staticClass:"k-vis-path",attrs:{"to":row.parent.panel}},[_vm._v(_vm._s(row.parent.title))])],1),_c('span',{staticClass:"k-vis-cell-text",attrs:{"data-level":_vm.issuesLevel(row.issues.filter(i => i.key.startsWith('alt_')))}},[(row.alt)?_c('span',[_vm._v(_vm._s(row.alt))]):(row.generated)?[_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.$t('visibilizer.source.auto')))]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(row.generated))])]:_c('span',{staticClass:"k-vis-flag"},[_vm._v(_vm._s(_vm.$t('visibilizer.issue.alt_missing')))])],2),_c('span',{staticClass:"k-vis-cell-meta"},[_c('span',{class:{ 'k-vis-flag': row.issues.some(i => i.key === 'image_heavy') }},[_vm._v(_vm._s(row.niceSize))]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(row.width)+" × "+_vm._s(row.height))])]),_c('span',{staticClass:"k-vis-actions"},[_c('k-link',{attrs:{"to":row.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1),_c('a',{attrs:{"href":row.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)],1)])})],2):_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"links"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.status')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.link')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.details')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.from')))]),_c('span')]),_vm._l((_vm.rows),function(row){return [_c('div',{key:row.href,staticClass:"k-vis-row",class:{ open: _vm.open[row.href] },on:{"click":function($event){row.from.length > 1 && _vm.toggle(row.href)}}},[_c('span',{staticClass:"k-vis-cell-status"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.result ? row.result.level : 'pending'}}),_c('span',{staticClass:"k-vis-code"},[_vm._v(_vm._s(row.result && row.result.code === 0 ? _vm.$t('visibilizer.link.code_none') : row.result && row.result.code ? row.result.code : '—'))])]),_c('span',{staticClass:"k-vis-cell-page"},[_c('span',{staticClass:"k-vis-href",attrs:{"title":row.href}},[_vm._v(_vm._s(row.label))]),_c('span',{staticClass:"k-vis-path"},[_vm._v(_vm._s(_vm.$t(row.internal ? 'visibilizer.internal' : 'visibilizer.external')))])]),_c('span',{staticClass:"k-vis-cell-text",class:{ 'k-vis-muted': !row.result }},[_vm._v(_vm._s(_vm.linkDetail(row)))]),_c('span',{staticClass:"k-vis-cell-from"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.from[0].panel},nativeOn:{"click":function($event){$event.stopPropagation();}}},[_vm._v(_vm._s(row.from[0].title))]),(row.from.length > 1)?_c('span',{staticClass:"k-vis-muted",attrs:{"title":row.from.slice(1).map(f => f.title).join(', ')}},[_vm._v(_vm._s(_vm.$t('visibilizer.more', { count: row.from.length - 1 })))]):_vm._e()],1),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[_c('a',{attrs:{"href":row.result && row.result.internal ? row.label : row.href,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)])]),(_vm.open[row.href])?_c('ul',{key:row.href + ':from',staticClass:"k-vis-issues k-vis-from"},_vm._l((row.from),function(f){return _c('li',{key:f.panel},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":f.panel}},[_vm._v(_vm._s(f.title))])],1)}),0):_vm._e()]})],2)]),_c('p',{staticClass:"k-vis-footnote"},[_vm._v(_vm._s(_vm.$t('visibilizer.footnote')))]),_c('footer',{staticClass:"k-vis-ink k-vis-footer"},[_c('span',[_vm._v("visibilizer")]),_c('a',{attrs:{"href":"https://rollinger.design","target":"_blank","rel":"noopener"}},[_vm._v("rollinger.design")])])],2)])
+var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-panel-inside',{staticClass:"k-visibilizer-view"},[_c('div',{staticClass:"k-vis"},[_c('header',{staticClass:"k-vis-ink k-vis-header"},[_c('h1',[_vm._v(_vm._s(_vm.$t('visibilizer.seo')))]),_c('nav',{staticClass:"k-vis-tabs"},_vm._l((_vm.tabs),function(t){return _c('button',{key:t.key,attrs:{"type":"button","aria-current":t.key === _vm.current ? 'true' : null},on:{"click":function($event){return _vm.select(t.key)}}},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.tab.' + t.key))+" "),(t.count !== null)?_c('span',{staticClass:"k-vis-tab-count"},[_vm._v(_vm._s(t.count))]):_vm._e()])}),0)]),(_vm.current !== 'settings')?_c('div',{staticClass:"k-vis-cards"},_vm._l((_vm.cards),function(c){return _c('button',{key:c.key,staticClass:"k-vis-card",attrs:{"type":"button","data-color":c.color},on:{"click":function($event){return _vm.select(c.tab, c.counts.error ? 'error' : 'all')}}},[_c('span',{staticClass:"k-vis-card-dot",attrs:{"data-size":c.text.length > 3 ? 's' : 'l'}},[_c('span',{staticClass:"k-vis-card-value"},[_vm._v(_vm._s(c.text))]),_c('span',{staticClass:"k-vis-card-unit"},[_vm._v(_vm._s(c.unit))])]),_c('span',{staticClass:"k-vis-card-label"},[_vm._v(_vm._s(_vm.$t('visibilizer.card.' + c.key)))]),_c('span',{staticClass:"k-vis-card-bar",attrs:{"aria-hidden":"true"}},_vm._l((c.segments),function(s){return _c('span',{key:s.level,style:({ width: s.width + '%' }),attrs:{"data-level":s.level}})}),0),_c('span',{staticClass:"k-vis-card-legend"},[_vm._l((c.legend),function(l){return _c('span',{key:l.level,attrs:{"data-level":l.level}},[_vm._v(_vm._s(l.text))])}),(!c.total)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):_vm._e()],2)])}),0):_vm._e(),(_vm.current !== 'settings')?_c('div',{staticClass:"k-vis-mode"},[_c('button',{staticClass:"k-vis-switch",attrs:{"type":"button","role":"switch","aria-checked":_vm.fallbacks ? 'true' : 'false'},on:{"click":_vm.toggleFallbacks}},[_c('span',{staticClass:"k-vis-switch-track"},[_c('span',{staticClass:"k-vis-switch-thumb"})]),_vm._v(" "+_vm._s(_vm.$t('visibilizer.fallbacks'))+" ")]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t(_vm.fallbacks ? 'visibilizer.fallbacks.on' : 'visibilizer.fallbacks.off')))])]):_vm._e(),(_vm.current === 'settings')?[_vm._l((_vm.settingsGroups),function(group,i){return [_c('section',{key:group.key,staticClass:"k-vis-block k-vis-settings"},[(i === 0)?_c('div',{staticClass:"k-vis-settings-split"},[_c('k-visibilizer-preview',{staticClass:"k-vis-settings-preview",attrs:{"label":_vm.$t('visibilizer.settings.preview'),"live-values":_vm.form,"live-context":_vm.previewContext,"initial-tab":"social"}}),_c('k-fieldset',{attrs:{"fields":group.fields,"value":_vm.form,"novalidate":true},on:{"input":function($event){_vm.form = $event}}})],1):[_c('k-fieldset',{attrs:{"fields":group.fields,"value":_vm.form,"novalidate":true},on:{"input":function($event){_vm.form = $event}}}),(group.key === 'icon_headline')?_c('div',{staticClass:"k-vis-icon-state"},[(_vm.iconPreviews.length)?_c('div',{staticClass:"k-vis-icon-previews"},_vm._l((_vm.iconPreviews),function(p){return _c('figure',{key:p.key,attrs:{"data-kind":p.key}},[_c('span',{staticClass:"k-vis-icon-frame"},[_c('img',{attrs:{"src":p.src,"alt":""}})]),_c('figcaption',[_vm._v(_vm._s(p.label)+" "),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(p.size))])])])}),0):_vm._e(),_c('ul',{staticClass:"k-vis-icon-checks"},_vm._l((_vm.settings.icons.checks),function(c){return _c('li',{key:c.key + (c.data ? c.data.file || '' : '')},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":c.level}}),_vm._v(" "+_vm._s(_vm.$t('visibilizer.icon.' + c.key, c.data || {}))+" ")])}),0)]):_vm._e()]],2)]}),_c('div',{staticClass:"k-vis-block k-vis-settings-bar"},[(!_vm.settings.editable)?_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.readonly')))]):(_vm.settingsChanged)?_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.unsaved')))]):_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.stored')))]),_c('span',{staticClass:"k-vis-tools"},[(_vm.settingsChanged)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.resetSettings}},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.reset')))]):_vm._e(),_c('button',{staticClass:"k-vis-button k-vis-button-primary",attrs:{"type":"button","disabled":!_vm.settingsChanged || _vm.saving || !_vm.settings.editable},on:{"click":_vm.saveSettings}},[_vm._v(" "+_vm._s(_vm.$t(_vm.saving ? 'visibilizer.settings.saving' : 'visibilizer.settings.save'))+" ")])])]),_c('section',{staticClass:"k-vis-block"},[_c('div',{staticClass:"k-vis-files-head"},[_c('h2',{staticClass:"k-vis-caption"},[_vm._v(_vm._s(_vm.$t('visibilizer.files')))]),(_vm.settings.editable)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.uploadFiles}},[_c('k-icon',{attrs:{"type":"upload"}}),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.files.upload')))])],1):_vm._e()]),(!_vm.settings.files.length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):_c('ul',{staticClass:"k-vis-files"},_vm._l((_vm.settings.files),function(file){return _c('li',{key:file.id},[_c('k-link',{staticClass:"k-vis-files-thumb",attrs:{"to":file.panel}},[(file.thumb)?_c('img',{attrs:{"src":file.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('span',{staticClass:"k-vis-files-info"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":file.panel}},[_vm._v(_vm._s(file.filename))]),_c('span',{staticClass:"k-vis-path"},[_vm._v(_vm._s(file.niceSize)),(file.size)?[_vm._v(" · "+_vm._s(file.size))]:_vm._e()],2),_c('span',{staticClass:"k-vis-files-used"},[_vm._l((_vm.fileUsage(file)),function(label){return _c('span',{key:label,staticClass:"k-vis-badge"},[_vm._v(_vm._s(label))])}),(!file.used.length)?_c('span',{staticClass:"k-vis-badge k-vis-badge-warn"},[_vm._v(_vm._s(_vm.$t('visibilizer.files.unused')))]):_vm._e()],2)],1)],1)}),0)]),_c('section',{staticClass:"k-vis-block"},[_c('h2',{staticClass:"k-vis-caption"},[_vm._v(_vm._s(_vm.$t('visibilizer.config')))]),_c('dl',{staticClass:"k-vis-config"},[_vm._l((_vm.configRows),function(row){return [_c('dt',{key:row.key + ':k'},[_vm._v(_vm._s(row.key))]),_c('dd',{key:row.key + ':v'},[_vm._v(_vm._s(row.value))])]})],2)])]:_c('section',{staticClass:"k-vis-block"},[_c('div',{staticClass:"k-vis-toolbar"},[_c('nav',{staticClass:"k-vis-filters"},_vm._l((_vm.filters),function(f){return _c('button',{key:f.key,attrs:{"type":"button","data-level":f.key,"aria-current":f.key === _vm.level ? 'true' : null,"disabled":!f.count && f.key !== 'all'},on:{"click":function($event){_vm.level = f.key}}},[(f.key !== 'all')?_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":f.key}}):_vm._e(),_vm._v(" "+_vm._s(_vm.$t(f.key === 'all' ? 'visibilizer.filter.all' : 'visibilizer.level.' + f.key))+" "),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(f.count))])])}),0),_c('div',{staticClass:"k-vis-tools"},[(_vm.modes[_vm.current])?_c('nav',{staticClass:"k-vis-filters k-vis-modes"},_vm._l((['pages', 'list']),function(m){return _c('button',{key:m,attrs:{"type":"button","aria-current":m === _vm.modes[_vm.current] ? 'true' : null},on:{"click":function($event){return _vm.setMode(m)}}},[_c('k-icon',{attrs:{"type":m === 'pages' ? 'folder' : 'list-bullet'}}),_vm._v(" "+_vm._s(_vm.$t('visibilizer.images.' + m))+" ")],1)}),0):_vm._e(),(_vm.current === 'images' && _vm.fillable)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.fill}},[_c('k-icon',{attrs:{"type":"wand"}}),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.fill'))+" ("+_vm._s(_vm.fillable)+")")])],1):_vm._e(),(_vm.current === 'links' && _vm.links.length)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button","disabled":!!_vm.checking},on:{"click":_vm.recheck}},[_c('k-icon',{attrs:{"type":"refresh"}}),(_vm.checking)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.checking', _vm.checking)))]):_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.recheck')))])],1):_vm._e(),_c('label',{staticClass:"k-vis-search"},[_c('k-icon',{attrs:{"type":"search"}}),_c('input',{directives:[{name:"model",rawName:"v-model",value:(_vm.query),expression:"query"}],attrs:{"type":"search","placeholder":_vm.$t('visibilizer.search')},domProps:{"value":(_vm.query)},on:{"input":function($event){if($event.target.composing)return;_vm.query=$event.target.value}}})],1)])]),(!_vm.source(_vm.current).length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):(!_vm.rows.length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty.filter')))]):(_vm.current === 'pages')?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"pages"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.page')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.title')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.description')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.image')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.index')))]),_c('span')]),_vm._l((_vm.visibleRows),function(row){return [_c('div',{key:row.id,staticClass:"k-vis-row",class:{ open: _vm.open[row.id] },on:{"click":function($event){return _vm.toggle(row.id)}}},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.pageLevel(row),"title":_vm.$t('visibilizer.level.' + _vm.pageLevel(row))}}),_c('span',{staticClass:"k-vis-cell-page"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.panel},nativeOn:{"click":function($event){$event.stopPropagation();}}},[_vm._v(_vm._s(row.title))]),_c('span',{staticClass:"k-vis-path",attrs:{"title":row.path}},[_vm._v(_vm._s(row.path))])],1),_c('span',{staticClass:"k-vis-cell-text",attrs:{"data-level":_vm.checkLevel(row.checks.title)}},[(row.metaTitle.source !== 'custom')?_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.sourceLabel(row.metaTitle)))]):_vm._e(),_c('span',{class:{ 'k-vis-muted': row.metaTitle.source !== 'custom' }},[_vm._v(_vm._s(row.metaTitle.value))])]),_c('span',{staticClass:"k-vis-cell-text k-vis-clamp",attrs:{"data-level":_vm.checkLevel(row.checks.description)}},[(row.description.source !== 'custom' && row.description.source !== 'none')?_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.sourceLabel(row.description)))]):_vm._e(),(row.description.value)?_c('span',{class:{ 'k-vis-muted': row.description.source !== 'custom' }},[_vm._v(_vm._s(row.description.value))]):_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.none')))])]),_c('span',{staticClass:"k-vis-cell-thumb",attrs:{"data-level":_vm.checkLevel(row.checks.image)}},[(row.image && row.image.thumb)?_c('img',{attrs:{"src":row.image.thumb,"alt":"","loading":"lazy"}}):_vm._e(),(row.image && row.image.source !== 'custom')?_c('span',{staticClass:"k-vis-badge k-vis-thumb-badge",attrs:{"title":_vm.sourceLabel(row.image)}},[_vm._v(_vm._s(row.image.source === 'field' ? row.image.field : _vm.sourceLabel(row.image)))]):_vm._e()]),_c('span',{staticClass:"k-vis-cell-index"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.indexable ? 'ok' : 'off',"title":row.indexable ? _vm.$t('visibilizer.indexable') : _vm.$t('visibilizer.noindex', { robots: row.robots })}})]),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[_c('k-link',{attrs:{"to":row.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1),_c('a',{attrs:{"href":row.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)],1)]),(_vm.open[row.id])?_c('ul',{key:row.id + ':issues',staticClass:"k-vis-issues"},[_vm._l((_vm.issues(row)),function(i,n){return _c('li',{key:n,class:{ 'k-vis-muted': !_vm.counts(i) }},[_vm._v(_vm._s(_vm.issue(i)))])}),(!_vm.issues(row).length)?_c('li',{attrs:{"data-level":"ok"}},[_vm._v(_vm._s(_vm.$t('visibilizer.level.ok')))]):_vm._e()],2):_vm._e()]})],2):(_vm.byPage)?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"by-page","data-kind":_vm.current}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),(_vm.current === 'images')?_c('span'):_vm._e(),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.page')))]),_c('span',[_vm._v(_vm._s(_vm.$t(_vm.current === 'images' ? 'visibilizer.col.alt' : 'visibilizer.col.status')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.tab.' + _vm.current)))]),_c('span')]),_vm._l((_vm.pageRows),function(row){return _c('div',{key:row.node.id,staticClass:"k-vis-row",attrs:{"data-depth":row.depth},on:{"click":function($event){return _vm.clickNode(row)}}},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.level,"title":_vm.$t('visibilizer.level.' + (row.level === 'pending' ? 'ok' : row.level))}}),(_vm.current === 'images')?_c('span',{staticClass:"k-vis-stack"},_vm._l((row.thumbs),function(i){return _c('img',{key:i.id,attrs:{"src":i.thumb,"alt":"","loading":"lazy"}})}),0):_vm._e(),_c('span',{staticClass:"k-vis-cell-page k-vis-cell-tree",style:({ paddingLeft: row.depth * 1.25 + 'rem' })},[_c('span',{staticClass:"k-vis-link"},[(row.node.children.length)?_c('k-icon',{staticClass:"k-vis-chevron",attrs:{"type":row.open ? 'angle-down' : 'angle-right'}}):_vm._e(),_vm._v(" "+_vm._s(row.node.title)+" ")],1),_c('span',{staticClass:"k-vis-path",attrs:{"title":row.node.path}},[_vm._v(" "+_vm._s(row.node.path)),(row.pages)?[_vm._v(" · "+_vm._s(_vm.$t('visibilizer.subpages', { count: row.pages })))]:_vm._e()],2)]),_c('span',{staticClass:"k-vis-cell-text k-vis-legend",attrs:{"data-level":row.legendLevel || row.level}},_vm._l((row.legend),function(l){return _c('span',{key:l.level,attrs:{"data-level":l.level}},[_vm._v(_vm._s(l.text))])}),0),_c('span',{staticClass:"k-vis-cell-meta"},[_c('span',[_vm._v(_vm._s(row.total))]),(row.heavy)?_c('span',{staticClass:"k-vis-flag"},[_vm._v(_vm._s(_vm.$t('visibilizer.images.heavy', { count: row.heavy })))]):_vm._e()]),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[(row.node.items.length)?_c('button',{attrs:{"type":"button","title":_vm.$t(_vm.current === 'images' ? 'visibilizer.images.open' : 'visibilizer.links.open')},on:{"click":function($event){return _vm.openNode(row.node)}}},[_c('k-icon',{attrs:{"type":_vm.current === 'images' ? 'image' : 'url'}})],1):_vm._e(),(row.node.panel)?_c('k-link',{attrs:{"to":row.node.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1):_vm._e()],1)])})],2):(_vm.current === 'images')?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"images"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),_c('span'),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.file')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.alt')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.weight')))]),_c('span')]),_vm._l((_vm.visibleRows),function(row){return _c('div',{key:row.id,staticClass:"k-vis-row"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.levelOf(row),"title":row.issues.map(_vm.issue).join(' · ') || _vm.$t('visibilizer.level.ok')}}),_c('span',{staticClass:"k-vis-cell-thumb"},[(row.thumb)?_c('img',{attrs:{"src":row.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('span',{staticClass:"k-vis-cell-page"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.panel}},[_vm._v(_vm._s(row.filename))]),_c('k-link',{staticClass:"k-vis-path",attrs:{"to":row.parent.panel}},[_vm._v(_vm._s(row.parent.title))])],1),_c('span',{staticClass:"k-vis-cell-text",attrs:{"data-level":_vm.issuesLevel(row.issues.filter(i => i.key.startsWith('alt_')))}},[(row.alt)?_c('span',[_vm._v(_vm._s(row.alt))]):(row.generated)?[_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.$t('visibilizer.source.auto')))]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(row.generated))])]:_c('span',{staticClass:"k-vis-flag"},[_vm._v(_vm._s(_vm.$t('visibilizer.issue.alt_missing')))])],2),_c('span',{staticClass:"k-vis-cell-meta"},[_c('span',{class:{ 'k-vis-flag': row.issues.some(i => i.key === 'image_heavy') }},[_vm._v(_vm._s(row.niceSize))]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(row.width)+" × "+_vm._s(row.height))])]),_c('span',{staticClass:"k-vis-actions"},[_c('k-link',{attrs:{"to":row.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1),_c('a',{attrs:{"href":row.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)],1)])})],2):_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"links"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.status')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.link')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.details')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.from')))]),_c('span')]),_vm._l((_vm.visibleRows),function(row){return [_c('div',{key:row.href,staticClass:"k-vis-row",class:{ open: _vm.open[row.href] },on:{"click":function($event){row.from.length > 1 && _vm.toggle(row.href)}}},[_c('span',{staticClass:"k-vis-cell-status"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.result ? row.result.level : 'pending'}}),_c('span',{staticClass:"k-vis-code"},[_vm._v(_vm._s(row.result && row.result.code === 0 ? _vm.$t('visibilizer.link.code_none') : row.result && row.result.code ? row.result.code : '—'))])]),_c('span',{staticClass:"k-vis-cell-page"},[_c('span',{staticClass:"k-vis-href",attrs:{"title":row.href}},[_vm._v(_vm._s(row.label))]),_c('span',{staticClass:"k-vis-path"},[_vm._v(_vm._s(_vm.$t(row.internal ? 'visibilizer.internal' : 'visibilizer.external')))])]),_c('span',{staticClass:"k-vis-cell-text",class:{ 'k-vis-muted': !row.result }},[_vm._v(_vm._s(_vm.linkDetail(row)))]),_c('span',{staticClass:"k-vis-cell-from"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.from[0].panel},nativeOn:{"click":function($event){$event.stopPropagation();}}},[_vm._v(_vm._s(row.from[0].title))]),(row.from.length > 1)?_c('span',{staticClass:"k-vis-muted",attrs:{"title":row.from.slice(1).map(f => f.title).join(', ')}},[_vm._v(_vm._s(_vm.$t('visibilizer.more', { count: row.from.length - 1 })))]):_vm._e()],1),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[_c('a',{attrs:{"href":row.result && row.result.internal ? row.label : row.href,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)])]),(_vm.open[row.href])?_c('ul',{key:row.href + ':from',staticClass:"k-vis-issues k-vis-from"},_vm._l((row.from),function(f){return _c('li',{key:f.panel},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":f.panel}},[_vm._v(_vm._s(f.title))])],1)}),0):_vm._e()]})],2),(_vm.rows.length > _vm.limit && !_vm.byPage)?_c('button',{staticClass:"k-vis-button k-vis-more",attrs:{"type":"button"},on:{"click":function($event){_vm.limit += _vm.step}}},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.showMore', { count: Math.min(_vm.step, _vm.rows.length - _vm.limit), total: _vm.rows.length - _vm.limit }))+" ")]):_vm._e()]),_c('p',{staticClass:"k-vis-footnote"},[_vm._v(_vm._s(_vm.$t('visibilizer.footnote')))]),_c('footer',{staticClass:"k-vis-ink k-vis-footer"},[_c('span',[_vm._v("visibilizer")]),_c('a',{attrs:{"href":"https://rollinger.design","target":"_blank","rel":"noopener"}},[_vm._v("rollinger.design")])])],2)])
 }
 var staticRenderFns = []
 return { render, staticRenderFns }
@@ -666,5 +1021,7 @@ panel.plugin('rllngr/kirby-visibilizer', {
   components: {
     'k-visibilizer-preview': SeoPreview,
     'k-visibilizer-seo-view': SeoView,
+    'k-visibilizer-alts-drawer': AltsDrawer,
+    'k-visibilizer-links-drawer': LinksDrawer,
   },
 })

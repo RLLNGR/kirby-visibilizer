@@ -199,51 +199,64 @@ class Audit
     public function imageReport(bool $thumbs = true): array
     {
         $rows = [];
-
         foreach ($this->images() as $file) {
-            $alt       = Alt::value($file);
-            $generated = $alt === '' ? Alt::generate($file) : '';
-            $issues    = [];
-            $level     = 'ok';
+            $rows[] = $this->imageRow($file, $thumbs);
+        }
+        return $rows;
+    }
 
-            if ($alt === '' && $generated !== '') {
-                $issues[] = ['key' => 'alt_generated', 'level' => 'warn', 'fallback' => true];
-                $level    = 'warn';
-            } elseif ($alt === '') {
-                $issues[] = ['key' => 'alt_missing', 'level' => 'error'];
-                $level    = 'error';
-            }
+    /** Clé de regroupement d'une image : l'id de sa page, 'site' pour les fichiers du site */
+    public static function parentId(File $file): string
+    {
+        $parent = $file->parent();
+        return $parent instanceof Page ? $parent->id() : 'site';
+    }
 
-            if ($file->size() > self::HEAVY_IMAGE) {
-                $issues[] = ['key' => 'image_heavy', 'level' => 'warn', 'data' => ['size' => $file->niceSize()]];
-                $level    = $this->worst([$level, 'warn']);
-            }
+    /** Une image auditée : texte alternatif, poids, page parente (pour le regroupement par page) */
+    public function imageRow(File $file, bool $thumbs = true): array
+    {
+        $alt       = Alt::value($file);
+        $generated = $alt === '' ? Alt::generate($file) : '';
+        $issues    = [];
+        $level     = 'ok';
 
-            $parent = $file->parent();
-
-            $rows[] = [
-                'id'       => $file->id(),
-                'filename' => $file->filename(),
-                'thumb'    => $thumbs ? $this->thumb($file) : null,
-                'url'      => $file->url(),
-                'panel'    => $file->panel()->url(),
-                'parent'   => [
-                    'title' => $parent->title()->value(),
-                    'panel' => $parent->panel()->url(),
-                ],
-                'alt'      => $alt,
-                'generated' => $generated,
-                'size'     => $file->size(),
-                'niceSize' => $file->niceSize(),
-                'width'    => $file->width(),
-                'height'   => $file->height(),
-                'level'    => $level,
-                'issues'   => $issues,
-                'altOk'    => $alt !== '',
-            ];
+        if ($alt === '' && $generated !== '') {
+            $issues[] = ['key' => 'alt_generated', 'level' => 'warn', 'fallback' => true];
+            $level    = 'warn';
+        } elseif ($alt === '') {
+            $issues[] = ['key' => 'alt_missing', 'level' => 'error'];
+            $level    = 'error';
         }
 
-        return $rows;
+        if ($file->size() > self::HEAVY_IMAGE) {
+            $issues[] = ['key' => 'image_heavy', 'level' => 'warn', 'data' => ['size' => $file->niceSize()]];
+            $level    = $this->worst([$level, 'warn']);
+        }
+
+        $parent = $file->parent();
+
+        return [
+            'id'       => $file->id(),
+            'filename' => $file->filename(),
+            'thumb'    => $thumbs ? $this->thumb($file) : null,
+            'url'      => $file->url(),
+            'panel'    => $file->panel()->url(),
+            'parent'   => [
+                'id'    => static::parentId($file),
+                'title' => $parent->title()->value(),
+                'path'  => $parent instanceof Page ? '/' . $parent->uri() : '/',
+                'panel' => $parent->panel()->url(),
+            ],
+            'alt'      => $alt,
+            'generated' => $generated,
+            'size'     => $file->size(),
+            'niceSize' => $file->niceSize(),
+            'width'    => $file->width(),
+            'height'   => $file->height(),
+            'level'    => $level,
+            'issues'   => $issues,
+            'altOk'    => $alt !== '',
+        ];
     }
 
     // -------------------------------------------------------------------------
@@ -264,16 +277,19 @@ class Audit
         $languages = $this->kirby->multilang() ? $this->kirby->languages()->codes() : [null];
 
         foreach ($models as $model) {
+            $from = [
+                'id'    => $model instanceof Site ? 'site' : $model->id(),
+                'title' => $model->title()->value(),
+                'path'  => $model instanceof Site ? '/' : '/' . $model->uri(),
+                'panel' => $model->panel()->url(),
+            ];
             foreach ($languages as $language) {
                 foreach ($model->content($language)->toArray() as $value) {
                     if (!is_string($value) || $value === '') continue;
 
                     foreach ($this->extractLinks($value) as $href) {
                         $links[$href] ??= ['href' => $href, 'from' => []];
-                        $links[$href]['from'][$model instanceof Site ? 'site' : $model->id()] = [
-                            'title' => $model->title()->value(),
-                            'panel' => $model->panel()->url(),
-                        ];
+                        $links[$href]['from'][$from['id']] = $from;
                     }
                 }
             }
