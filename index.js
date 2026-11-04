@@ -129,8 +129,9 @@ const SeoPreview = {
     // Image réellement partagée : champ de la page (valeur en direct), sinon image du site, sinon première image
     // Champ image de repli du template (fallbacks.image), lu en direct
     fallbackImageUrl() {
-      for (const name of this.ctx.fallbacks?.image || []) {
-        const url = this.fileUrl(this.values[name]);
+      for (const entry of this.ctx.fallbacks?.image || []) {
+        // fonction de repli : URL calculée côté serveur
+        const url = typeof entry === 'string' ? this.fileUrl(this.values[entry]) : entry?.url;
         if (url) return url;
       }
       return null;
@@ -216,7 +217,7 @@ const SeoPreview = {
       else if (tl < 30) items.push({ status: 'warn', msg: t('title.shortish', { length: tl }) });
       else items.push({ status: 'ok', msg: t('title.ok', { length: tl }) });
       if (this.titleSource !== 'custom') {
-        items.push({ status: fallback, msg: t('title.' + this.titleSource, { field: (this.ctx.fallbacks?.title || []).join(', ') }) });
+        items.push({ status: fallback, msg: t('title.' + this.titleSource, { field: this.fallbackNames('title') }) });
       }
 
       // Description
@@ -230,13 +231,13 @@ const SeoPreview = {
         else if (dl < 70) items.push({ status: 'warn', msg: t('desc.shortish', { length: dl }) });
         else items.push({ status: 'ok', msg: t('desc.ok', { length: dl }) });
         if (this.descSource !== 'custom') {
-          items.push({ status: fallback, msg: t('desc.' + this.descSource, { field: (this.ctx.fallbacks?.description || []).join(', ') }) });
+          items.push({ status: fallback, msg: t('desc.' + this.descSource, { field: this.fallbackNames('description') }) });
         }
       }
 
       // OG image
       if (!this.hasOgImage && this.fallbackImageUrl) {
-        items.push({ status: fallback, msg: t('image.field', { field: (this.ctx.fallbacks?.image || []).join(', ') }) });
+        items.push({ status: fallback, msg: t('image.field', { field: this.fallbackNames('image') }) });
       } else if (!this.hasOgImage && this.ctx.siteOgImage) {
         items.push({ status: fallback, msg: t('image.site') });
       } else if (!this.hasOgImage && this.ctx.autoImageUrl) {
@@ -300,11 +301,21 @@ const SeoPreview = {
       return first.image?.url || first.url || null;
     },
 
+    // Noms des replis pour les messages ; une fonction n'a pas de nom de champ
+    fallbackNames(type) {
+      return (this.ctx.fallbacks?.[type] || []).map(entry => typeof entry === 'string' ? entry : 'auto').join(', ');
+    },
+
     // Texte brut (le champ peut contenir du HTML), coupé comme Str::excerpt côté PHP
     fallbackText(type) {
       const max = type === 'title' ? 60 : (this.ctx.fallbacks?.length || 160);
-      for (const name of this.ctx.fallbacks?.[type] || []) {
-        const raw = this.values[name];
+      for (const entry of this.ctx.fallbacks?.[type] || []) {
+        // fonction de repli : texte déjà calculé (et coupé) côté serveur
+        if (typeof entry !== 'string') {
+          if (entry?.value) return entry.value;
+          continue;
+        }
+        const raw = this.values[entry];
         if (typeof raw !== 'string' || !raw.trim()) continue;
         const el = document.createElement('div');
         el.innerHTML = raw.replace(/<br\s*\/?>|<\/(p|li|h[1-6]|div|blockquote|figcaption|td)>/gi, ' $&');

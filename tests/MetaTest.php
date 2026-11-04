@@ -64,4 +64,55 @@ class MetaTest extends TestCase
     {
         $this->assertSame('Un texte', Meta::plainText('<p>Un&nbsp;<strong>texte</strong></p>'));
     }
+
+    public function testAFunctionCanBeTheFallback(): void
+    {
+        $meta = $this->meta(['client' => 'Hermès', 'skills' => 'Identité visuelle'], ['fallbacks' => [
+            'description' => ['project' => fn ($page) => $page->client() . ' — ' . $page->skills()],
+        ]]);
+
+        $this->assertSame('Hermès — Identité visuelle', $meta->description());
+        $this->assertSame(['field' => Meta::FUNCTION_FALLBACK, 'value' => 'Hermès — Identité visuelle'], $meta->fallback('description'));
+        $this->assertSame('field', $meta->sources()['description']);
+        $this->assertSame([], $meta->fallbackFields('description'));
+        $this->assertSame([['value' => 'Hermès — Identité visuelle']], $meta->fallbackPreview('description'));
+    }
+
+    protected function mixedFallbacks(): array
+    {
+        return ['fallbacks' => ['description' => ['project' => ['intro', fn ($page) => $page->client()]]]];
+    }
+
+    public function testAFieldBeforeAFunctionWins(): void
+    {
+        $meta = $this->meta(['intro' => 'Reprise', 'client' => 'Hermès'], $this->mixedFallbacks());
+
+        $this->assertSame('Reprise', $meta->description());
+        $this->assertSame(['intro'], $meta->fallbackFields('description'));
+    }
+
+    public function testTheFunctionIsTriedWhenTheFieldIsEmpty(): void
+    {
+        $this->assertSame('Hermès', $this->meta(['client' => 'Hermès'], $this->mixedFallbacks())->description());
+    }
+
+    public function testAnEmptyFunctionFallsThroughToTheSite(): void
+    {
+        $meta = $this->meta([], ['fallbacks' => ['description' => ['project' => fn () => null]]]);
+
+        $this->assertSame(['field' => null, 'value' => ''], $meta->fallback('description'));
+        $this->assertSame([], $meta->fallbackPreview('description'));
+    }
+
+    public function testAFunctionFallbackIsCutAndPlain(): void
+    {
+        $meta = $this->meta([], ['fallbacks' => [
+            'title' => ['project' => fn () => '<p>Un&nbsp;titre</p>'],
+            'description' => ['*' => fn () => str_repeat('mot ', 60)],
+            'length' => 20,
+        ]]);
+
+        $this->assertSame('Un titre – Site', $meta->title());
+        $this->assertLessThanOrEqual(22, mb_strlen($meta->description()));
+    }
 }

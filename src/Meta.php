@@ -68,23 +68,73 @@ class Meta
             ?: $this->model->title()->value();
     }
 
+    /** Nom affiché pour un repli donné par une fonction (pas de nom de champ) */
+    public const FUNCTION_FALLBACK = 'auto';
+
     /**
-     * Champ de repli configuré pour le template de la page (`fallbacks.title` / `fallbacks.description`),
-     * ramené à du texte brut : ['field' => nom du champ ou null, 'value' => texte].
+     * Repli configuré pour le template de la page (`fallbacks.title` / `fallbacks.description`),
+     * ramené à du texte brut : ['field' => nom du champ (FUNCTION_FALLBACK pour une fonction) ou null, 'value' => texte].
      */
     public function fallback(string $type): array
     {
         $length = $type === 'title' ? 60 : ($this->options['fallbacks']['length'] ?? 160);
 
-        foreach ($this->fallbackFields($type) as $name) {
-            $field = $this->model->content()->get($name);
+        foreach ($this->fallbackResolvers($type) as $resolver) {
+            if ($resolver instanceof \Closure) {
+                $text = Str::excerpt(static::plainText(static::resolvedText($resolver($this->model))), $length);
+                if ($text !== '') return ['field' => static::FUNCTION_FALLBACK, 'value' => $text];
+                continue;
+            }
+
+            $field = $this->model->content()->get($resolver);
             if ($field->isEmpty()) continue;
 
             $text = Str::excerpt(static::plainText($field->kirbytext()->value()), $length);
-            if ($text !== '') return ['field' => $name, 'value' => $text];
+            if ($text !== '') return ['field' => $resolver, 'value' => $text];
         }
 
         return ['field' => null, 'value' => ''];
+    }
+
+    /** Ce que renvoie une fonction de repli (texte, champ, null…) ramené à du HTML / texte */
+    protected static function resolvedText(mixed $value): string
+    {
+        if ($value instanceof \Kirby\Content\Field) return (string) $value->kirbytext()->value();
+        if (is_array($value)) return implode(' ', array_map(static::resolvedText(...), $value));
+        return is_scalar($value) || $value instanceof \Stringable ? (string) $value : '';
+    }
+
+    /** Ce que renvoie une fonction de repli d'image (fichier, champ fichiers, null…) ramené à un fichier */
+    protected static function resolvedFile(mixed $value): ?File
+    {
+        if ($value instanceof File) return $value;
+        if ($value instanceof \Kirby\Content\Field) return $value->toFile();
+        if ($value instanceof \Kirby\Cms\Files) return $value->first();
+        return null;
+    }
+
+    /**
+     * Replis pour l'aperçu en direct : le nom du champ (lu dans le formulaire),
+     * ou, pour une fonction, sa valeur calculée sur le contenu enregistré (['value' => …] / ['url' => …]).
+     */
+    public function fallbackPreview(string $type): array
+    {
+        $entries = [];
+
+        foreach ($this->fallbackResolvers($type) as $resolver) {
+            if (!$resolver instanceof \Closure) {
+                $entries[] = $resolver;
+            } elseif ($type === 'image') {
+                $file = $this->imageOf(static::resolvedFile($resolver($this->model)));
+                if ($file) $entries[] = ['url' => $this->imageUrl($file)];
+            } else {
+                $length = $type === 'title' ? 60 : ($this->options['fallbacks']['length'] ?? 160);
+                $text   = Str::excerpt(static::plainText(static::resolvedText($resolver($this->model))), $length);
+                if ($text !== '') $entries[] = ['value' => $text];
+            }
+        }
+
+        return $entries;
     }
 
     /** HTML → texte : une espace entre les blocs, entités décodées (&nbsp; compris) */
@@ -95,13 +145,26 @@ class Meta
         return trim(preg_replace('/[\s\x{00A0}]+/u', ' ', $text));
     }
 
-    /** Noms des champs de repli pour le template de la page, dans l'ordre */
+    /** Noms des champs de repli pour le template de la page, dans l'ordre (sans les fonctions) */
     public function fallbackFields(string $type): array
+    {
+        return array_values(array_filter($this->fallbackResolvers($type), 'is_string'));
+    }
+
+    /**
+     * Replis pour le template de la page, dans l'ordre : noms de champ et fonctions `fn (Page $page) => …`
+     * (texte ou champ pour title / description, fichier ou champ fichiers pour image).
+     */
+    public function fallbackResolvers(string $type): array
     {
         if (!$this->model instanceof Page) return [];
 
-        $map = $this->options['fallbacks'][$type] ?? [];
-        return (array) ($map[$this->model->intendedTemplate()->name()] ?? $map['*'] ?? []);
+        $map   = $this->options['fallbacks'][$type] ?? [];
+        $entry = $map[$this->model->intendedTemplate()->name()] ?? $map['*'] ?? [];
+
+        // (array) sur une Closure donnerait [] : une fonction seule est mise dans une liste
+        $list = $entry instanceof \Closure ? [$entry] : (array) $entry;
+        return array_values(array_filter($list, fn ($r) => $r instanceof \Closure || (is_string($r) && $r !== '')));
     }
 
     protected function isHome(): bool
@@ -165,9 +228,13 @@ class Meta
             return ['file' => $file, 'source' => 'custom', 'field' => null];
         }
 
-        foreach ($this->fallbackFields('image') as $name) {
-            if ($file = $this->imageOf($this->model->content()->get($name)->toFile())) {
-                return ['file' => $file, 'source' => 'field', 'field' => $name];
+        foreach ($this->fallbackResolvers('image') as $resolver) {
+            $file = $resolver instanceof \Closure
+                ? static::resolvedFile($resolver($this->model))
+                : $this->model->content()->get($resolver)->toFile();
+
+            if ($file = $this->imageOf($file)) {
+                return ['file' => $file, 'source' => 'field', 'field' => $resolver instanceof \Closure ? static::FUNCTION_FALLBACK : $resolver];
             }
         }
 

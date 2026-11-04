@@ -244,9 +244,10 @@ App::plugin('rllngr/kirby-visibilizer', [
                         'faviconUrl'      => (new Icons($kirby))->previewUrl(),
                         // Champs de repli lus en direct par l'aperçu
                         'fallbacks'       => [
-                            'title'       => $page->isHomePage() ? [] : $meta->fallbackFields('title'),
-                            'description' => $meta->fallbackFields('description'),
-                            'image'       => $meta->fallbackFields('image'),
+                            // un nom de champ (lu en direct) ou, pour une fonction, sa valeur : { value } / { url }
+                            'title'       => $page->isHomePage() ? [] : $meta->fallbackPreview('title'),
+                            'description' => $meta->fallbackPreview('description'),
+                            'image'       => $meta->fallbackPreview('image'),
                             'length'      => $kirby->option('rllngr.kirby-visibilizer.fallbacks.length', 160),
                         ],
                     ];

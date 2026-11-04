@@ -231,6 +231,18 @@ When `seo_title` / `seo_description` / `og_image` are empty, a page can borrow o
 ],
 ```
 
+When no field fits, give a function instead of a field name (alone or in the list, tried in order). It receives the page and returns a text or a field (`title`, `description`), or a file or files field (`image`); the result is cleaned and cut like a field:
+
+```php
+'fallbacks' => [
+    'description' => [
+        'project' => fn ($page) => $page->title() . ' — ' . $page->client() . ', ' . $page->skills(),
+    ],
+],
+```
+
+The SEO view and the live preview show it as `auto`. The preview shows its value for the saved content, not what is being typed.
+
 Cascade: SEO field → template field → page title (titles) / site description (descriptions) / site share image, then the page's first image (images).
 
 The shared image is resized to `ogImageWidth` (default `1200`, `null` for the original file) and `og:image:width` / `og:image:height` are written; its `og:image:alt` uses the image's alt text (see below). The live preview and the SEO view show where each value comes from.

@@ -155,9 +155,9 @@ class Settings
             'titleSeparator' => $o['titleSeparator'] ?? ' — ',
             'ogImageWidth'   => $o['ogImageWidth'] ?? 1200,
             'fallbacks'      => array_filter([
-                'title'       => $o['fallbacks']['title'] ?? [],
-                'description' => $o['fallbacks']['description'] ?? [],
-                'image'       => $o['fallbacks']['image'] ?? [],
+                'title'       => static::describeFallbacks($o['fallbacks']['title'] ?? []),
+                'description' => static::describeFallbacks($o['fallbacks']['description'] ?? []),
+                'image'       => static::describeFallbacks($o['fallbacks']['image'] ?? []),
             ]),
             'alt'            => array_filter([
                 '*' => $o['alt']['template'] ?? null,
@@ -165,5 +165,13 @@ class Settings
             ]),
             'llmsSections'   => count($o['llms']['sections'] ?? []),
         ];
+    }
+
+    /** Replis de la config pour l'affichage : une fonction devient « fn () » (elle ne passe pas en JSON) */
+    protected static function describeFallbacks(array $map): array
+    {
+        $describe = fn ($entry) => $entry instanceof \Closure ? 'fn ()' : $entry;
+
+        return array_map(fn ($entry) => is_array($entry) ? array_map($describe, $entry) : $describe($entry), $map);
     }
 }
