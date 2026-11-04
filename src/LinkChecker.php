@@ -180,7 +180,8 @@ class LinkChecker
             };
 
             curl_multi_remove_handle($multi, $ch);
-            curl_close($ch);
+            // curl_close() est un no-op depuis PHP 8.0 et déprécié en 8.5 ; le
+            // handle se libère tout seul une fois retiré du multi et hors scope.
         }
 
         curl_multi_close($multi);
