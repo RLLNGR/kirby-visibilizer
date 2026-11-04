@@ -207,7 +207,8 @@ The plugin reads the following fields from your content files. All are optional 
 | `og_description` | textarea | og:description override |
 | `twitter_card` | select | twitter:card |
 | `twitter_image` | files (max: 1) | twitter:image override |
-| `llmsdescription` | textarea | `/llms.txt` site summary |
+| `llmsdescription` | textarea | `/llms.txt` site summary (short) |
+| `llmsdescriptionfull` | textarea | `/llms-full.txt` site summary (detailed; falls back to `llmsdescription`) |
 | `llmsinstructions` | textarea | `/llms.txt` AI instructions |
 
 Site-level fields (in `site.yml`) follow the same names and serve as defaults for all pages.
@@ -263,7 +264,7 @@ In the SEO view, generated texts are shown with an `auto` badge, and *Fill empty
 
 ## GEO — llms.txt sections
 
-By default, `llms.txt` only contains the site header (title, description, instructions). To populate it with page sections, configure them in `config.php`:
+By default, `llms.txt` only contains the site header (title, description, instructions). The header description comes from the `llmsdescription` field for `/llms.txt` and from the `llmsdescriptionfull` field for `/llms-full.txt`; when `llmsdescriptionfull` is empty, `/llms-full.txt` reuses the short `llmsdescription`. To populate the files with page sections, configure them in `config.php`:
 
 ```php
 'llms' => [

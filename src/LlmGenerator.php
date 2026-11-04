@@ -17,9 +17,10 @@ class LlmGenerator
     {
         $this->kirby      = $kirby;
         $this->options    = $kirby->option('rllngr.kirby-visibilizer.llms', []);
-        $this->fieldNames = $this->options['fields'] ?? [
-            'description'  => 'llmsdescription',
-            'instructions' => 'llmsinstructions',
+        $this->fieldNames = ($this->options['fields'] ?? []) + [
+            'description'     => 'llmsdescription',
+            'descriptionFull' => 'llmsdescriptionfull',
+            'instructions'    => 'llmsinstructions',
         ];
 
         $this->siteUrl   = Url::site();
@@ -75,7 +76,7 @@ class LlmGenerator
         return [
             'title'        => $site->title()->value(),
             'url'          => $this->siteUrl,
-            'description'  => $this->getSiteDescription(),
+            'description'  => $this->getSiteDescription($full),
             'instructions' => $this->getSiteInstructions(),
             'sections'     => $this->buildSections($full),
         ];
@@ -100,7 +101,7 @@ class LlmGenerator
         $lines[] = '# ' . $this->kirby->site()->title()->value();
         $lines[] = '';
 
-        $description = $this->getSiteDescription();
+        $description = $this->getSiteDescription($full);
         if ($description) {
             $lines[] = '> ' . $this->inline($description);
             $lines[] = '';
@@ -301,10 +302,21 @@ class LlmGenerator
         return '';
     }
 
-    protected function getSiteDescription(): string
+    protected function getSiteDescription(bool $full = false): string
     {
+        $site = $this->kirby->site();
+
+        // /llms-full.txt : description détaillée si renseignée, sinon on
+        // retombe sur la description courte (rétrocompatibilité).
+        if ($full) {
+            $fieldFull = $this->fieldNames['descriptionFull'] ?? 'llmsdescriptionfull';
+            $valueFull = $site->content()->get($fieldFull)->value();
+            if ($valueFull) {
+                return $this->clean($valueFull);
+            }
+        }
+
         $field = $this->fieldNames['description'] ?? 'llmsdescription';
-        $site  = $this->kirby->site();
         $value = $site->content()->get($field)->value();
 
         if (!$value) {

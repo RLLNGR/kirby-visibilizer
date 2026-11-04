@@ -23,6 +23,17 @@ fields:
     buttons: false
     size: medium
 
+  llmsdescriptionfull:
+    type: textarea
+    label:
+      en: Detailed description for AI
+      fr: Description détaillée pour l'IA
+    help:
+      en: "Longer version at the top of /llms-full.txt. Leave empty to reuse the short description above."
+      fr: "Version longue en tête de /llms-full.txt. Laisser vide pour reprendre la description courte ci-dessus."
+    buttons: false
+    size: medium
+
   llmsinstructions:
     type: textarea
     label:

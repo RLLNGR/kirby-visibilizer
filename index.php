@@ -314,8 +314,9 @@ App::plugin('rllngr/kirby-visibilizer', [
             ],
             // Panel field names (keep in sync with geo.yml blueprint)
             'fields' => [
-                'description'  => 'llmsdescription',
-                'instructions' => 'llmsinstructions',
+                'description'     => 'llmsdescription',     // /llms.txt header
+                'descriptionFull' => 'llmsdescriptionfull', // /llms-full.txt header (falls back to description)
+                'instructions'    => 'llmsinstructions',
             ],
         ],
 

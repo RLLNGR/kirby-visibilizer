@@ -141,6 +141,17 @@ llmsdescription:
     en: "Summary at the top of /llms.txt. Be specific: who you are, what you do, your positioning."
     fr: "Résumé en tête de /llms.txt. Soyez précis : qui vous êtes, ce que vous faites, votre positionnement."
 
+llmsdescriptionfull:
+  type: textarea
+  label:
+    en: Detailed description for AI
+    fr: Description détaillée pour l'IA
+  buttons: false
+  size: medium
+  help:
+    en: "Longer version at the top of /llms-full.txt. Leave empty to reuse the short description above."
+    fr: "Version longue en tête de /llms-full.txt. Laisser vide pour reprendre la description courte ci-dessus."
+
 llmsinstructions:
   type: textarea
   label:
