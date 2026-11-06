@@ -13,7 +13,7 @@ class Meta
     protected App        $kirby;
     protected Page|Site  $model;
     protected array      $options;
-    protected bool       $compat;
+    protected mixed      $compat;
 
     public function __construct(App $kirby, Page|Site $model)
     {
@@ -63,8 +63,7 @@ class Meta
      */
     protected function pageTitle(): string
     {
-        return $this->field('seo_title', 'metaTitle')
-            ?: $this->fallback('title')['value']
+        return $this->fieldOrFallback('seo_title', 'metaTitle', 'title')
             ?: $this->model->title()->value();
     }
 
@@ -167,6 +166,27 @@ class Meta
         return array_values(array_filter($list, fn ($r) => $r instanceof \Closure || (is_string($r) && $r !== '')));
     }
 
+    /** Le template de la page a-t-il un repli configuré pour ce type ? */
+    public function hasFallback(string $type): bool
+    {
+        return $this->fallbackResolvers($type) !== [];
+    }
+
+    /**
+     * Cascade d'un champ texte : champ du plugin → repli configuré pour le template → valeur héritée de kirby-seo.
+     * Sans repli configuré, l'ordre historique est conservé (champ du plugin → kirby-seo).
+     */
+    protected function fieldOrFallback(string $primary, string $compat, string $type): string
+    {
+        if ($this->hasFallback($type) === false) {
+            return $this->field($primary, $compat);
+        }
+
+        return $this->field($primary)
+            ?: $this->fallback($type)['value']
+            ?: $this->field($primary, $compat);
+    }
+
     protected function isHome(): bool
     {
         return $this->model instanceof Site || $this->model->isHomePage();
@@ -178,8 +198,7 @@ class Meta
 
     public function description(): string
     {
-        $value = $this->field('seo_description', 'metaDescription')
-            ?: $this->fallback('description')['value'];
+        $value = $this->fieldOrFallback('seo_description', 'metaDescription', 'description');
 
         if (!$value && $this->model instanceof Page) {
             $value = $this->siteField('seo_description', 'metaDescription');
@@ -224,7 +243,9 @@ class Meta
      */
     public function ogImageSource(): array
     {
-        if ($file = $this->resolveFileField('og_image', 'ogImage')) {
+        $ownImage = $this->hasFallback('image') ? $this->resolveFileField('og_image') : $this->resolveFileField('og_image', 'ogImage');
+
+        if ($file = $ownImage) {
             return ['file' => $file, 'source' => 'custom', 'field' => null];
         }
 
@@ -236,6 +257,11 @@ class Meta
             if ($file = $this->imageOf($file)) {
                 return ['file' => $file, 'source' => 'field', 'field' => $resolver instanceof \Closure ? static::FUNCTION_FALLBACK : $resolver];
             }
+        }
+
+        // L'image héritée de kirby-seo ne passe qu'après le repli configuré
+        if ($this->hasFallback('image') && ($file = $this->resolveFileField('og_image', 'ogImage'))) {
+            return ['file' => $file, 'source' => 'custom', 'field' => null];
         }
 
         if ($file = $this->resolveSiteFileField('og_image', 'ogImage')) {
@@ -403,18 +429,23 @@ class Meta
      */
     public function sources(): array
     {
+        $compatTitle = $this->model instanceof Site ? 'metaTemplate' : 'metaTitle';
+
+        // Même ordre que pageTitle() : le repli configuré passe avant la valeur héritée de kirby-seo
         $title = match (true) {
-            $this->field('seo_title', $this->model instanceof Site ? 'metaTemplate' : 'metaTitle') !== '' => 'custom',
-            $this->isHome() && $this->siteField('seo_title', 'metaTemplate') !== ''    => 'custom',
+            $this->field('seo_title') !== ''                                           => 'custom',
             !$this->isHome() && $this->fallback('title')['field'] !== null             => 'field',
+            $this->field('seo_title', $compatTitle) !== ''                             => 'custom',
+            $this->isHome() && $this->siteField('seo_title', 'metaTemplate') !== ''    => 'custom',
             default                                                                    => 'default',
         };
 
         $description = match (true) {
+            (bool) $this->field('seo_description')                    => 'custom',
+            $this->fallback('description')['field'] !== null          => 'field',
             (bool) $this->field('seo_description', 'metaDescription') => 'custom',
-            $this->fallback('description')['field'] !== null         => 'field',
-            (bool) $this->description()                              => 'site',
-            default                                                  => 'none',
+            (bool) $this->description()                               => 'site',
+            default                                                   => 'none',
         };
 
         $image = $this->ogImageSource();
@@ -503,6 +534,32 @@ class Meta
     // Field resolution helpers
     // -------------------------------------------------------------------------
 
+    /** Type de métadonnée visé par chaque champ hérité de kirby-seo */
+    protected const COMPAT_TYPES = [
+        'metaTitle'       => 'title',
+        'metaTemplate'    => 'title',
+        'ogTitle'         => 'title',
+        'ogTemplate'      => 'title',
+        'metaDescription' => 'description',
+        'ogDescription'   => 'description',
+        'ogImage'         => 'image',
+    ];
+
+    /**
+     * La compat kirby-seo est-elle active pour ce champ hérité ?
+     * `compat.kirby-seo` accepte `true` (tout) ou un tableau par type : `['title' => false]`.
+     */
+    protected function compatEnabled(?string $compat): bool
+    {
+        if ($compat === null || $this->compat === false) return false;
+
+        if (is_array($this->compat)) {
+            return (bool) ($this->compat[static::COMPAT_TYPES[$compat] ?? ''] ?? true);
+        }
+
+        return (bool) $this->compat;
+    }
+
     /**
      * Read a field from the current model.
      * $compat is only checked when the kirby-seo compat option is enabled.
@@ -512,7 +569,7 @@ class Meta
         $value = $this->model->content()->get($primary)->value();
         if ($value) return $value;
 
-        if ($compat && $this->compat) {
+        if ($this->compatEnabled($compat)) {
             $value = $this->model->content()->get($compat)->value();
             if ($value) return $value;
         }
@@ -525,7 +582,7 @@ class Meta
         $value = $this->kirby->site()->content()->get($name)->value();
         if ($value) return $value;
 
-        if ($compat && $this->compat) {
+        if ($this->compatEnabled($compat)) {
             $value = $this->kirby->site()->content()->get($compat)->value();
             if ($value) return $value;
         }
@@ -540,7 +597,7 @@ class Meta
     {
         $field = $this->model->content()->get($primary);
 
-        if ($field->isEmpty() && $compat && $this->compat) {
+        if ($field->isEmpty() && $this->compatEnabled($compat)) {
             $field = $this->model->content()->get($compat);
         }
 
@@ -553,7 +610,7 @@ class Meta
     {
         $field = $this->kirby->site()->content()->get($name);
 
-        if ($field->isEmpty() && $compat && $this->compat) {
+        if ($field->isEmpty() && $this->compatEnabled($compat)) {
             $field = $this->kirby->site()->content()->get($compat);
         }
 

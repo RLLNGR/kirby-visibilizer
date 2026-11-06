@@ -55,6 +55,79 @@ class MetaTest extends TestCase
         $this->assertSame('custom', $meta->sources()['title']);
     }
 
+    // Un repli configuré pour le template passe avant le titre hérité de kirby-seo
+    public function testTheConfiguredFallbackWinsOverTheKirbySeoTitle(): void
+    {
+        $meta = $this->meta(
+            ['metaTitle' => 'Un ancien titre très long', 'mainTitle' => 'Hôtel en pierre'],
+            ['compat' => ['kirby-seo' => true], 'fallbacks' => ['title' => ['project' => 'mainTitle']]]
+        );
+
+        $this->assertSame('Hôtel en pierre – Site', $meta->title());
+        $this->assertSame('field', $meta->sources()['title']);
+        $this->assertSame('mainTitle', $meta->sources()['titleField']);
+    }
+
+    // Sans repli configuré, rien ne change pour un site qui migre depuis kirby-seo
+    public function testTheKirbySeoTitleStillWinsWithoutAConfiguredFallback(): void
+    {
+        $meta = $this->meta(
+            ['metaTitle' => 'Ancien titre', 'mainTitle' => 'Ignoré'],
+            ['compat' => ['kirby-seo' => true], 'fallbacks' => ['title' => ['autre' => 'mainTitle']]]
+        );
+
+        $this->assertSame('Ancien titre – Site', $meta->title());
+        $this->assertSame('custom', $meta->sources()['title']);
+    }
+
+    // Le champ du plugin reste prioritaire sur le repli configuré
+    public function testTheSeoTitleWinsOverTheConfiguredFallback(): void
+    {
+        $meta = $this->meta(
+            ['seo_title' => 'Écrit', 'metaTitle' => 'Ancien', 'mainTitle' => 'Repli'],
+            ['compat' => ['kirby-seo' => true], 'fallbacks' => ['title' => ['project' => 'mainTitle']]]
+        );
+
+        $this->assertSame('Écrit – Site', $meta->title());
+        $this->assertSame('custom', $meta->sources()['title']);
+    }
+
+    // Le titre hérité reste le dernier recours quand le champ de repli est vide
+    public function testTheKirbySeoTitleIsUsedWhenTheFallbackFieldIsEmpty(): void
+    {
+        $meta = $this->meta(
+            ['metaTitle' => 'Ancien titre'],
+            ['compat' => ['kirby-seo' => true], 'fallbacks' => ['title' => ['project' => 'mainTitle']]]
+        );
+
+        $this->assertSame('Ancien titre – Site', $meta->title());
+        $this->assertSame('custom', $meta->sources()['title']);
+    }
+
+    // La description suit la même cascade
+    public function testTheConfiguredFallbackWinsOverTheKirbySeoDescription(): void
+    {
+        $meta = $this->meta(
+            ['metaDescription' => 'Ancienne', 'intro' => 'Reprise'],
+            ['compat' => ['kirby-seo' => true], 'fallbacks' => ['description' => ['project' => 'intro']]]
+        );
+
+        $this->assertSame('Reprise', $meta->description());
+        $this->assertSame('field', $meta->sources()['description']);
+    }
+
+    // La compat peut être coupée champ par champ : ['kirby-seo' => ['title' => false]]
+    public function testCompatCanBeDisabledPerType(): void
+    {
+        $meta = $this->meta(
+            ['metaTitle' => 'Ancien titre', 'metaDescription' => 'Ancienne description'],
+            ['compat' => ['kirby-seo' => ['title' => false]]]
+        );
+
+        $this->assertSame('Projet – Site', $meta->title());
+        $this->assertSame('Ancienne description', $meta->description());
+    }
+
     public function testIgnoresTheKirbySeoTitleWithoutCompat(): void
     {
         $this->assertSame('Projet – Site', $this->meta(['metaTitle' => 'Ancien titre'])->title());

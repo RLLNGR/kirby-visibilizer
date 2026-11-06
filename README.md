@@ -245,6 +245,8 @@ The SEO view and the live preview show it as `auto`. The preview shows its value
 
 Cascade: SEO field → template field → page title (titles) / site description (descriptions) / site share image, then the page's first image (images).
 
+With the kirby-seo compat option on, a fallback configured for the page's template is tried **before** the inherited kirby-seo value, which becomes the last resort. Templates with no configured fallback are unaffected: the inherited value still wins there, so migrating without configuring anything changes nothing.
+
 The shared image is resized to `ogImageWidth` (default `1200`, `null` for the original file) and `og:image:width` / `og:image:height` are written; its `og:image:alt` uses the image's alt text (see below). The live preview and the SEO view show where each value comes from.
 
 ### Image alt texts
@@ -412,6 +414,18 @@ Enable the compatibility fallback in `config.php`:
 ```
 
 This makes the meta cascade read the old kirby-seo field names (`metaTitle`, `metaDescription`, `ogImage`, `twitterImage`, `twitterCardType`, `robots`) as a fallback when the new fields are empty. Your existing content is read without any data migration.
+
+Full order for a page: the plugin's own field → the fallback configured for its template, if any (see [Field fallbacks](#field-fallbacks)) → the inherited kirby-seo value. So a configured fallback lets you replace inherited titles template by template while keeping inherited descriptions and images.
+
+Compat can also be turned off per metadata type, instead of all at once — useful when the old titles are poor but the old descriptions are good:
+
+```php
+'compat' => [
+    'kirby-seo' => ['title' => false], // description and image still inherited
+],
+```
+
+Keys are `title`, `description` and `image`; any key left out stays enabled. `true` keeps everything, as above.
 
 When you're ready to clean up, copy the old field values to the new field names in your content files and disable the compat option.
 
