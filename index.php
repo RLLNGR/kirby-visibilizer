@@ -206,6 +206,8 @@ App::plugin('rllngr/kirby-visibilizer', [
                     $page    = $kirby->page($pageId);
 
                     $separator = $kirby->option('rllngr.kirby-visibilizer.titleSeparator', ' — ');
+                    // Suffixe réellement utilisé par Meta::title() (option titleSuffix, sinon le titre du site)
+                    $suffix    = (new Meta($kirby, $site))->titleSuffix();
                     $homeTitle = $site->content()->get('seo_title')->or($site->title())->value();
 
                     if (!$page) {
@@ -214,8 +216,9 @@ App::plugin('rllngr/kirby-visibilizer', [
                             'pageTitle' => $site->title()->value(),
                             'pageUrl'   => Url::site(),
                             'siteUrl'   => Url::site(),
-                            'separator' => $separator,
-                            'isHome'    => true,
+                            'separator'   => $separator,
+                            'titleSuffix' => $suffix,
+                            'isHome'      => true,
                             // Site values come from the edited fields themselves
                             'homeTitle' => $site->title()->value(),
                             'siteDescription' => '',
@@ -233,8 +236,9 @@ App::plugin('rllngr/kirby-visibilizer', [
                         'pageTitle' => $page->title()->value(),
                         'pageUrl'   => Url::page($page),
                         'siteUrl'   => Url::site(),
-                        'separator' => $separator,
-                        'isHome'    => $page->isHomePage(),
+                        'separator'   => $separator,
+                        'titleSuffix' => $suffix,
+                        'isHome'      => $page->isHomePage(),
                         'homeTitle' => $homeTitle,
                         'siteDescription' => $site->content()->get('seo_description')->or($site->description())->value() ?? '',
                         'siteOgImage'     => $site->content()->get('og_image')->toFile() !== null,
@@ -267,6 +271,9 @@ App::plugin('rllngr/kirby-visibilizer', [
 
         // Separator between page title and site name
         'titleSeparator' => ' — ',
+
+        // Suffix after the separator; unset = the site title, '' or null = no suffix at all
+        // 'titleSuffix' => 'Short name',
 
         // Width of the shared image (og:image / twitter:image); null = original file
         'ogImageWidth' => 1200,

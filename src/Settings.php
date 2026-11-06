@@ -83,7 +83,8 @@ class Settings
             'context'  => [
                 'siteTitle' => $kirby->site()->title()->value(),
                 'siteUrl'   => Url::site(),
-                'separator' => $kirby->option('rllngr.kirby-visibilizer.titleSeparator', ' — '),
+                'separator'   => $kirby->option('rllngr.kirby-visibilizer.titleSeparator', ' — '),
+                'titleSuffix' => (new Meta($kirby, $kirby->site()))->titleSuffix(),
                 // Image de repli du site (fallbacks.image.site), montrée quand le champ est vide
                 'fallbackImageUrl' => ($file = (new Meta($kirby, $kirby->site()))->ogImageSource())['source'] === 'field'
                     ? $file['file']->resize(1200)->url()
@@ -185,6 +186,7 @@ class Settings
             'mode'           => $o['mode'] ?? 'classic',
             'siteUrl'        => $o['siteUrl'] ?? null,
             'titleSeparator' => $o['titleSeparator'] ?? ' — ',
+            'titleSuffix'    => (new Meta($kirby, $kirby->site()))->titleSuffix(),
             'ogImageWidth'   => $o['ogImageWidth'] ?? 1200,
             'fallbacks'      => array_filter([
                 'title'       => static::describeFallbacks($o['fallbacks']['title'] ?? []),

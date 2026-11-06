@@ -6,7 +6,7 @@ use Rllngr\KirbyVisibilizer\Meta;
 
 class MetaTest extends TestCase
 {
-    protected function meta(array $content, array $options = []): Meta
+    protected function meta(array $content, array $options = [], string $slug = 'projet'): Meta
     {
         $app = $this->app([
             'options' => ['rllngr.kirby-visibilizer' => $options + ['titleSeparator' => ' – ']],
@@ -19,7 +19,7 @@ class MetaTest extends TestCase
             ],
         ]);
 
-        return new Meta($app, $app->page('projet'));
+        return new Meta($app, $app->page($slug));
     }
 
     public function testTheTitleEndsWithTheSite(): void
@@ -131,6 +131,57 @@ class MetaTest extends TestCase
     public function testIgnoresTheKirbySeoTitleWithoutCompat(): void
     {
         $this->assertSame('Projet – Site', $this->meta(['metaTitle' => 'Ancien titre'])->title());
+    }
+
+    // titleSuffix : par défaut, le titre du site, comme avant
+    public function testTheTitleSuffixDefaultsToTheSiteTitle(): void
+    {
+        $meta = $this->meta([]);
+
+        $this->assertSame('Projet – Site', $meta->title());
+        $this->assertSame('Site', $meta->titleSuffix());
+    }
+
+    public function testTheTitleSuffixCanBeConfigured(): void
+    {
+        $meta = $this->meta([], ['titleSuffix' => 'Court']);
+
+        $this->assertSame('Projet – Court', $meta->title());
+        $this->assertSame('Court', $meta->titleSuffix());
+    }
+
+    // Une valeur vide ou null supprime le suffixe, séparateur compris
+    public function testAnEmptyTitleSuffixDropsTheSeparator(): void
+    {
+        $this->assertSame('Projet', $this->meta([], ['titleSuffix' => ''])->title());
+    }
+
+    public function testANullTitleSuffixDropsTheSeparator(): void
+    {
+        $this->assertSame('Projet', $this->meta([], ['titleSuffix' => null])->title());
+    }
+
+    // Le titre de page déjà égal au suffixe n'est pas répété
+    public function testTheSuffixIsNotRepeatedWhenTheTitleAlreadyMatchesIt(): void
+    {
+        $meta = $this->meta(['seo_title' => 'Court'], ['titleSuffix' => 'Court']);
+
+        $this->assertSame('Court', $meta->title());
+    }
+
+    // Page d'accueil : pas de suffixe accolé, et le suffixe sert de dernier recours
+    public function testTheHomeTitleUsesTheSuffixAsItsLastResort(): void
+    {
+        $meta = $this->meta([], ['titleSuffix' => 'Court'], 'home');
+
+        $this->assertSame('Court', $meta->title());
+    }
+
+    public function testTheHomeTitleFallsBackToTheSiteTitleWithoutASuffix(): void
+    {
+        $meta = $this->meta([], ['titleSuffix' => ''], 'home');
+
+        $this->assertSame('Site', $meta->title());
     }
 
     public function testAFallbackIsPlainText(): void

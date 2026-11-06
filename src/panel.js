@@ -39,6 +39,7 @@ const SeoPreview = {
         pageUrl:   '',
         siteUrl:   '',
         separator: ' — ',
+        titleSuffix: '',
         isHome:    false,
         homeTitle: '',
         siteDescription: '',
@@ -101,9 +102,11 @@ const SeoPreview = {
 
     fullTitle() {
       const t = this.seoTitle;
-      const s = this.ctx.siteTitle;
-      if (this.ctx.isHome) return t || s;
-      if (!t || t === s) return s;
+      // Suffixe réellement utilisé côté PHP ; vide = titre de page seul, sans séparateur
+      const s = this.ctx.titleSuffix !== undefined ? this.ctx.titleSuffix : this.ctx.siteTitle;
+      if (this.ctx.isHome) return t || s || this.ctx.siteTitle;
+      if (!t) return s || this.ctx.siteTitle;
+      if (!s || t === s) return t;
       return `${t}${this.ctx.separator}${s}`;
     },
 
@@ -814,6 +817,7 @@ const SeoView = {
         pageUrl: c.siteUrl,
         siteUrl: c.siteUrl,
         separator: c.separator,
+        titleSuffix: c.titleSuffix,
         isHome: true,
         homeTitle: c.siteTitle,
         siteDescription: '',
@@ -848,6 +852,7 @@ const SeoView = {
       return [
         ['mode', c.mode + (c.siteUrl ? ' · ' + c.siteUrl : '')],
         ['titleSeparator', '« ' + c.titleSeparator + ' »'],
+        ['titleSuffix', c.titleSuffix ? '« ' + c.titleSuffix + ' »' : this.$t('visibilizer.none')],
         ['ogImageWidth', c.ogImageWidth ? c.ogImageWidth + ' px' : this.$t('visibilizer.config.original')],
         ['fallbacks.title', list(c.fallbacks.title)],
         ['fallbacks.description', list(c.fallbacks.description)],

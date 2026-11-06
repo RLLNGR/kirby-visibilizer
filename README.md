@@ -168,6 +168,7 @@ return [
         'cache'          => true,
         'cacheDuration'  => 60,            // minutes
         'titleSeparator' => ' — ',
+        // 'titleSuffix' => 'Short name',  // default: the site title; '' or null = no suffix
 
         'sitemap' => [
             'enabled' => true,
@@ -191,6 +192,19 @@ return [
     ],
 ];
 ```
+
+### Page titles
+
+A page title is `page title` + `titleSeparator` + a suffix. The suffix defaults to `$site->title()`, which is often too long for a `<title>` — a 41-character site name eats most of the ~70-character budget on every page. Set `titleSuffix` to a shorter name:
+
+```php
+'titleSeparator' => ' — ',
+'titleSuffix'    => 'Neufville-Gayet',   // → "Projet — Neufville-Gayet"
+```
+
+The value is the suffix alone — don't include the separator, `titleSeparator` still provides it. `''` or `null` drops the suffix entirely, separator included, leaving the page title on its own. A page whose title already equals the suffix is not repeated, and the home page never takes a suffix (it uses `seo_title`, then the site's `seo_title`, then `titleSuffix`, then the site title).
+
+Leaving the option out keeps the previous behaviour exactly. The SEO view, the live preview and the read-only config list in the Settings tab all show the suffix actually in use.
 
 ### Panel fields
 

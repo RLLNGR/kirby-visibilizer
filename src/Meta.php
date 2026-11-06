@@ -29,24 +29,36 @@ class Meta
 
     public function title(): string
     {
-        $siteTitle = $this->kirby->site()->title()->value();
-        $separator = $this->options['titleSeparator'] ?? ' — ';
-
         if ($this->isHome()) {
             return $this->homeTitle();
         }
 
         $pageTitle = $this->pageTitle();
+        $suffix    = $this->titleSuffix();
 
-        if ($pageTitle === $siteTitle) {
-            return $siteTitle;
+        // Pas de suffixe configuré, ou déjà porté par le titre : pas de séparateur orphelin
+        if ($suffix === '' || $pageTitle === $suffix) {
+            return $pageTitle;
         }
 
-        return $pageTitle . $separator . $siteTitle;
+        return $pageTitle . ($this->options['titleSeparator'] ?? ' — ') . $suffix;
     }
 
     /**
-     * Site and home page: page seo_title → site seo_title → site title,
+     * Suffixe accolé aux titres de page, séparateur non compris.
+     * Par défaut le titre du site ; `'titleSuffix' => null` ou `''` le supprime.
+     */
+    public function titleSuffix(): string
+    {
+        if (array_key_exists('titleSuffix', $this->options)) {
+            return trim((string) $this->options['titleSuffix']);
+        }
+
+        return $this->kirby->site()->title()->value() ?? '';
+    }
+
+    /**
+     * Site and home page: page seo_title → site seo_title → title suffix → site title,
      * without the separator suffix.
      */
     protected function homeTitle(): string
@@ -55,7 +67,9 @@ class Meta
             return $value;
         }
 
-        return $this->siteField('seo_title', 'metaTemplate') ?: $this->kirby->site()->title()->value();
+        return $this->siteField('seo_title', 'metaTemplate')
+            ?: $this->titleSuffix()
+            ?: $this->kirby->site()->title()->value();
     }
 
     /**
