@@ -1,6 +1,6 @@
 # kirby-visibilizer
 
-All-in-one **SEO + GEO** plugin for [Kirby 5](https://getkirby.com). Free and open source.
+All-in-one **SEO + GEO** plugin for [Kirby](https://getkirby.com) 4 and 5. Free and open source.
 
 Handles everything that makes a Kirby site visible — to search engines **and** to AI engines.
 
@@ -17,7 +17,7 @@ Handles everything that makes a Kirby site visible — to search engines **and**
 
 ## Requirements
 
-- Kirby 5
+- Kirby 4.8+ or Kirby 5
 - PHP 8.2+
 - The `curl` and `gd` extensions (link checks, site icons)
 

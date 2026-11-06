@@ -4,7 +4,7 @@
 
 ---
 
-Installe et configure le plugin **rllngr/kirby-visibilizer** (SEO + GEO pour Kirby 5) sur ce site. Lis d'abord son README (`site/plugins/kirby-visibilizer/README.md` une fois installé, ou https://github.com/rllngr/kirby-visibilizer) : il fait foi pour les noms d'options et de champs.
+Installe et configure le plugin **rllngr/kirby-visibilizer** (SEO + GEO pour Kirby 4 et 5) sur ce site. Lis d'abord son README (`site/plugins/kirby-visibilizer/README.md` une fois installé, ou https://github.com/rllngr/kirby-visibilizer) : il fait foi pour les noms d'options et de champs.
 
 ## 1. État des lieux (avant de toucher quoi que ce soit)
 

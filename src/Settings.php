@@ -36,14 +36,35 @@ class Settings
         $site     = $kirby->site();
         $language = $kirby->language()?->code();
 
+        $values = $site->content($language)->toArray();
+        $input  = $input !== null ? array_intersect_key($input, array_flip(static::keys())) : null;
+
+        // Kirby 4 : le formulaire prend tout dans un tableau de props (pas de fill() / submit())
+        if (static::legacy()) {
+            return new Form([
+                'fields'   => static::fields(),
+                'model'    => $site,
+                'language' => $language,
+                'values'   => $values,
+                'input'    => $input ?? [],
+                'strict'   => true,
+            ]);
+        }
+
         $form = new Form(fields: static::fields(), model: $site, language: $language);
-        $form->fill(input: $site->content($language)->toArray());
+        $form->fill(input: $values);
 
         if ($input !== null) {
-            $form->submit(input: array_intersect_key($input, array_flip(static::keys())), passthrough: false);
+            $form->submit(input: $input, passthrough: false);
         }
 
         return $form;
+    }
+
+    /** Kirby 4 : Form sans l'API de Kirby 5 (fill, submit, toProps, toFormValues, toStoredValues, validate) */
+    protected static function legacy(): bool
+    {
+        return !method_exists(Form::class, 'toProps');
     }
 
     /** Props de l'onglet réglages : champs, valeurs, droits et réglages venant de la config */
@@ -52,8 +73,8 @@ class Settings
         $form = static::form($kirby);
 
         return [
-            'fields'   => $form->toProps(),
-            'values'   => array_intersect_key($form->toFormValues(), array_flip(static::keys())),
+            'fields'   => static::legacy() ? $form->fields()->toArray() : $form->toProps(),
+            'values'   => array_intersect_key(static::legacy() ? $form->values() : $form->toFormValues(), array_flip(static::keys())),
             'editable' => $kirby->site()->permissions()->can('update'),
             'config'   => static::config($kirby),
             'icons'    => static::icons($kirby),
@@ -74,9 +95,20 @@ class Settings
     public static function save(App $kirby, array $input): array
     {
         $form = static::form($kirby, $input);
-        $form->validate();
+        if (static::legacy()) {
+            if ($form->isInvalid()) {
+                throw new \Kirby\Exception\InvalidArgumentException([
+                    'fallback' => 'Invalid form with errors',
+                    'details'  => $form->errors(),
+                ]);
+            }
+            $stored = $form->strings();
+        } else {
+            $form->validate();
+            $stored = $form->toStoredValues();
+        }
 
-        $values = array_intersect_key($form->toStoredValues(), array_flip(static::keys()));
+        $values = array_intersect_key($stored, array_flip(static::keys()));
         $kirby->site()->update($values, $kirby->language()?->code());
 
         return static::props($kirby);

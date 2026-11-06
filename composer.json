@@ -1,6 +1,6 @@
 {
   "name": "rllngr/kirby-visibilizer",
-  "description": "All-in-one SEO + GEO plugin for Kirby 5. Meta tags, sitemap.xml, robots.txt, llms.txt and JSON-LD — classic and headless.",
+  "description": "All-in-one SEO + GEO plugin for Kirby 4 and 5. Meta tags, sitemap.xml, robots.txt, llms.txt and JSON-LD — classic and headless.",
   "type": "kirby-plugin",
   "license": "MIT",
   "authors": [
@@ -14,6 +14,7 @@
   "keywords": [
     "kirby",
     "kirby-plugin",
+    "kirby4",
     "kirby5",
     "seo",
     "meta",
