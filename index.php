@@ -3,7 +3,6 @@
 use Kirby\Cms\App;
 use Kirby\Exception\NotFoundException;
 use Kirby\Exception\PermissionException;
-use Kirby\Toolkit\I18n;
 use Kirby\Content\Field;
 use Rllngr\KirbyVisibilizer\Alt;
 use Rllngr\KirbyVisibilizer\Audit;
@@ -14,6 +13,7 @@ use Rllngr\KirbyVisibilizer\Meta;
 use Rllngr\KirbyVisibilizer\Robots;
 use Rllngr\KirbyVisibilizer\Settings;
 use Rllngr\KirbyVisibilizer\Url;
+use Rllngr\KirbyVisibilizer\SeoPreviewField;
 use Rllngr\KirbyVisibilizer\Sitemap;
 
 load([
@@ -27,7 +27,12 @@ load([
     'Rllngr\\KirbyVisibilizer\\Url'          => __DIR__ . '/src/Url.php',
     'Rllngr\\KirbyVisibilizer\\Icons'        => __DIR__ . '/src/Icons.php',
     'Rllngr\\KirbyVisibilizer\\LinkChecker'  => __DIR__ . '/src/LinkChecker.php',
+    'Rllngr\\KirbyVisibilizer\\SeoPreviewField' => __DIR__ . '/src/SeoPreviewField.php',
 ]);
+
+// Kirby 6 convertit chaque section en champ, selon cette table : une section `seo-preview` devient le
+// champ du même nom, et les blueprints écrits pour 1.x n'ont rien à changer.
+Kirby\Blueprint\Normalizer::$sectionFields['seo-preview'] = 'seo-preview';
 
 /** Vue SEO du Panel : `panel.access` = true (tous), false (personne) ou une liste de rôles */
 function visibilizerPanelAccess(): bool
@@ -67,6 +72,23 @@ App::plugin('rllngr/kirby-visibilizer', [
                                 'links'  => $audit->linkReport(),
                             ],
                         ];
+                    },
+                ],
+            ],
+            // Sélecteur des champs fichiers de l'onglet réglages : en Kirby 6, la liste de fichiers
+            // est un dialogue du Panel, et ces champs ne sont dans aucun blueprint pour en avoir un
+            'dialogs' => [
+                'visibilizer.settings.field' => [
+                    'pattern' => 'rllngr/visibilizer-settings/fields/(:any)/(:all)',
+                    'action'  => function (string $name, string $dialog) {
+                        if (!visibilizerPanelAccess()) {
+                            throw new PermissionException(t('visibilizer.forbidden'));
+                        }
+                        $dialogs = Settings::form(kirby())->field($name)->dialogs();
+                        if (!isset($dialogs[$dialog])) {
+                            throw new NotFoundException('Unknown dialog');
+                        }
+                        return $dialogs[$dialog]();
                     },
                 ],
             ],
@@ -194,6 +216,19 @@ App::plugin('rllngr/kirby-visibilizer', [
                     $checker = new LinkChecker(kirby());
                     if (get('force')) $checker->forget($hrefs);
                     return $checker->check($hrefs);
+                },
+            ],
+            [
+                // Kirby 6 : la valeur en direct d'un champ fichier est une liste d'UUID, sans adresse.
+                // L'aperçu demande ici celle de l'image choisie.
+                'pattern' => 'rllngr/visibilizer-file',
+                'method'  => 'GET',
+                'action'  => function () {
+                    $file = kirby()->file((string) get('id'));
+                    if (!$file || !$file->isReadable()) {
+                        return ['url' => null];
+                    }
+                    return ['url' => $file->type() === 'image' ? $file->resize(1200)->url() : $file->url()];
                 },
             ],
             [
@@ -357,17 +392,14 @@ App::plugin('rllngr/kirby-visibilizer', [
         ],
     ],
 
-    'sections' => [
-        'seo-preview' => [
-            'props' => [
-                'label' => fn ($label = null) => I18n::translate($label, $label),
-            ],
-        ],
+    'fields' => [
+        'seo-preview' => SeoPreviewField::class,
     ],
 
     'blueprints' => [
         'sections/seo'         => __DIR__ . '/blueprints/sections/seo.yml',
         'sections/seo-preview' => __DIR__ . '/blueprints/sections/seo-preview.yml',
+        'fields/seo-preview'   => __DIR__ . '/blueprints/fields/seo-preview.yml',
         'sections/geo'         => __DIR__ . '/blueprints/sections/geo.yml',
     ],
 
@@ -575,4 +607,6 @@ App::plugin('rllngr/kirby-visibilizer', [
         },
     ],
 
+], info: [
+    'version' => '2.0.0',
 ]);

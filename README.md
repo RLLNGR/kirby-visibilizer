@@ -17,8 +17,8 @@ Handles everything that makes a Kirby site visible — to search engines **and**
 
 ## Requirements
 
-- Kirby 4.8+ or Kirby 5
-- PHP 8.2+
+- Kirby 6 (PHP 8.3+). For Kirby 4.8 or 5, stay on v1.x: `composer require rllngr/kirby-visibilizer:^1`
+- PHP 8.3+
 - The `curl` and `gd` extensions (link checks, site icons)
 
 ## Installation
@@ -116,7 +116,16 @@ sections:
     extends: sections/geo
 ```
 
-The `seo-preview` section shows a live preview panel with three tabs (Google SERP, OG/social card, Twitter/X card) and a checklist of SEO issues. It reads field values in real time — changes are reflected before saving.
+In a list of `fields:`, the preview is `fields/seo-preview`:
+
+```yaml
+fields:
+  preview: fields/seo-preview
+```
+
+Kirby 6 has no custom sections any more: the preview is a field that stores nothing. Blueprints written for v1, with `type: seo-preview` under `sections:`, keep working unchanged.
+
+The `seo-preview` preview shows a live preview panel with three tabs (Google SERP, OG/social card, Twitter/X card) and a checklist of SEO issues. It reads field values in real time — changes are reflected before saving.
 
 ---
 

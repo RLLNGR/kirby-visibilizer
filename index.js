@@ -1,4 +1,5 @@
 // GÉNÉRÉ par scripts/build-panel.mjs depuis src/panel.js — ne pas modifier ici, puis : npm run build
+import { createCommentVNode as _createCommentVNode, toDisplayString as _toDisplayString, createElementVNode as _createElementVNode, createTextVNode as _createTextVNode, normalizeClass as _normalizeClass, renderList as _renderList, Fragment as _Fragment, openBlock as _openBlock, createElementBlock as _createElementBlock, normalizeStyle as _normalizeStyle, resolveComponent as _resolveComponent, withCtx as _withCtx, createBlock as _createBlock, createVNode as _createVNode, withModifiers as _withModifiers, withKeys as _withKeys, mergeProps as _mergeProps, vModelText as _vModelText, withDirectives as _withDirectives } from 'vue'
 const worst = levels => (levels.includes('error') ? 'error' : levels.includes('warn') ? 'warn' : 'ok')
 const STORE = 'visibilizer.fallbacks'
 
@@ -11,7 +12,7 @@ const readPref = () => {
   }
 }
 
-// Section « Aperçu SEO » des pages (aperçu Google / réseaux sociaux + contrôles), valeurs lues en direct.
+// Champ « Aperçu SEO » des pages (aperçu Google / réseaux sociaux + contrôles), valeurs lues en direct.
 const SeoPreview = {
 
   // -----------------------------------------------------------------------
@@ -33,6 +34,7 @@ const SeoPreview = {
 
   data() {
     return {
+      fileUrls: {},
       tab: this.initialTab,
       ctx: this.liveContext || {
         siteTitle: '',
@@ -62,14 +64,7 @@ const SeoPreview = {
     values() {
       if (this.liveValues) return this.liveValues;
       try {
-        // Kirby 5
-        if (this.$panel?.content?.version) {
-          return this.$panel.content.version('changes') || {};
-        }
-        // Kirby 4
-        const id    = this.$store.state.content?.current;
-        const model = this.$store.state.content?.models?.[id];
-        return { ...model?.originals, ...model?.changes };
+        return this.$panel.content.version('changes') || {};
       } catch {
         return {};
       }
@@ -297,11 +292,20 @@ const SeoPreview = {
   // -----------------------------------------------------------------------
 
   methods: {
-    // Champ fichiers : Kirby 5 donne [{ image: { url } }, …] dans les valeurs en direct
+    // Champ fichiers : Kirby 6 ne garde que des UUID dans les valeurs en direct (« file://… ») ;
+    // l'adresse est demandée une fois au serveur, puis gardée.
     fileUrl(value) {
       const first = Array.isArray(value) ? value[0] : null;
-      if (!first || typeof first !== 'object') return null;
-      return first.image?.url || first.url || null;
+      if (!first) return null;
+      if (typeof first === 'object') return first.image?.url || first.url || null;
+      if (!(first in this.fileUrls)) {
+        this.fileUrls[first] = null;
+        this.$api
+          .get('rllngr/visibilizer-file', { id: first })
+          .then(res => (this.fileUrls[first] = res?.url || null))
+          .catch(() => {});
+      }
+      return this.fileUrls[first];
     },
 
     // Noms des replis pour les messages ; une fonction n'a pas de nom de champ
@@ -334,7 +338,7 @@ const SeoPreview = {
     async loadContext() {
       try {
         // e.g. "pages/projects+hospitality" or "site"
-        const parent = this.parent || this.$panel?.view?.props?.api || this.$store?.state?.content?.current || '';
+        const parent = this.parent || this.$panel?.view?.props?.api || '';
         const match  = parent.replace(/^\//, '').match(/^pages\/(.+)$/);
         const slug   = match ? match[1].replace(/\//g, '+') : 'site';
         const data = await this.$api.get(`rllngr/visibilizer/${slug}`);
@@ -349,11 +353,194 @@ const SeoPreview = {
   // Template
   // -----------------------------------------------------------------------
 
-  ...(() => {
-var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-section',{attrs:{"label":_vm.resolvedLabel}},[_c('div',{staticClass:"vis-preview"},[_c('div',{staticClass:"vis-score",class:'vis-score--' + _vm.scoreClass},[_c('span',{staticClass:"vis-score-number"},[_vm._v(_vm._s(_vm.score)),_c('small',[_vm._v("%")])]),_c('span',{staticClass:"vis-score-label"},[_vm._v(_vm._s(_vm.scoreLabel))])]),_c('div',{staticClass:"vis-tabs"},_vm._l(([['google','Google'],['social',_vm.$t('visibilizer.preview.tab.social')],['twitter','Twitter / X']]),function(t){return _c('button',{key:t[0],class:['vis-tab', _vm.tab === t[0] && 'vis-tab--active'],on:{"click":function($event){_vm.tab = t[0]}}},[_vm._v(_vm._s(t[1]))])}),0),(_vm.tab === 'google')?_c('div',{staticClass:"vis-google"},[_c('div',{staticClass:"vis-google-header"},[_c('div',{staticClass:"vis-google-favicon",class:{ 'vis-has-icon': _vm.faviconUrl }},[(_vm.faviconUrl)?_c('img',{attrs:{"src":_vm.faviconUrl,"alt":""}}):[_vm._v("G")]],2),_c('div',[_c('div',{staticClass:"vis-google-site"},[_vm._v(_vm._s(_vm.ctx.siteTitle))]),_c('div',{staticClass:"vis-google-url"},[_vm._v(_vm._s(_vm.displayDomain)+_vm._s(_vm.displayPath))])])]),_c('div',{staticClass:"vis-google-title",class:_vm.titleLength > 60 ? 'vis-truncated' : ''},[_vm._v(" "+_vm._s(_vm.fullTitle || _vm.$t('visibilizer.preview.placeholder.title'))+" ")]),_c('div',{staticClass:"vis-google-desc"},[_vm._v(" "+_vm._s(_vm.seoDescription || _vm.$t('visibilizer.preview.placeholder.description'))+" ")]),_c('div',{staticClass:"vis-char-row"},[_c('span',{staticClass:"vis-char-label"},[_vm._v(_vm._s(_vm.$t('visibilizer.preview.chars.title')))]),_c('div',{staticClass:"vis-char-bar"},[_c('div',{staticClass:"vis-char-fill",style:(_vm.titleBar)})]),_c('span',{staticClass:"vis-char-count",class:_vm.titleLength > 60 ? 'vis-over' : ''},[_vm._v(_vm._s(_vm.titleLength)+"/60")])]),_c('div',{staticClass:"vis-char-row"},[_c('span',{staticClass:"vis-char-label"},[_vm._v(_vm._s(_vm.$t('visibilizer.preview.chars.description')))]),_c('div',{staticClass:"vis-char-bar"},[_c('div',{staticClass:"vis-char-fill",style:(_vm.descBar)})]),_c('span',{staticClass:"vis-char-count",class:_vm.descLength > 160 ? 'vis-over' : ''},[_vm._v(_vm._s(_vm.descLength)+"/160")])])]):_vm._e(),(_vm.tab === 'social')?_c('div',{staticClass:"vis-og"},[_c('div',{staticClass:"vis-og-image",class:!_vm.ogImageUrl ? 'vis-og-image--empty' : ''},[(_vm.ogImageUrl)?_c('img',{attrs:{"src":_vm.ogImageUrl,"alt":""}}):_c('span',{staticClass:"vis-og-placeholder"},[_vm._v(_vm._s(_vm.$t('visibilizer.preview.placeholder.ogimage')))])]),_c('div',{staticClass:"vis-og-body"},[_c('div',{staticClass:"vis-og-domain"},[(_vm.faviconUrl)?_c('img',{staticClass:"vis-domain-icon",attrs:{"src":_vm.faviconUrl,"alt":""}}):_vm._e(),_vm._v(" "+_vm._s(_vm.displayDomain.split('/')[0].toUpperCase())+" ")]),_c('div',{staticClass:"vis-og-title"},[_vm._v(_vm._s(_vm.ogTitle || _vm.$t('visibilizer.preview.placeholder.title')))]),_c('div',{staticClass:"vis-og-desc"},[_vm._v(_vm._s(_vm.ogDescription || _vm.$t('visibilizer.preview.placeholder.description')))])])]):_vm._e(),(_vm.tab === 'twitter')?_c('div',{staticClass:"vis-twitter"},[_c('div',{staticClass:"vis-twitter-image",class:!_vm.twitterImageUrl ? 'vis-twitter-image--empty' : ''},[(_vm.twitterImageUrl)?_c('img',{attrs:{"src":_vm.twitterImageUrl,"alt":""}}):_c('span',{staticClass:"vis-og-placeholder"},[_vm._v(_vm._s(_vm.$t('visibilizer.preview.placeholder.image')))])]),_c('div',{staticClass:"vis-twitter-body"},[_c('div',{staticClass:"vis-twitter-title"},[_vm._v(_vm._s(_vm.ogTitle || _vm.$t('visibilizer.preview.placeholder.title')))]),_c('div',{staticClass:"vis-twitter-desc"},[_vm._v(_vm._s(_vm.ogDescription || _vm.$t('visibilizer.preview.placeholder.description')))]),_c('div',{staticClass:"vis-twitter-domain",class:{ 'vis-has-icon': _vm.faviconUrl }},[(_vm.faviconUrl)?_c('img',{staticClass:"vis-domain-icon",attrs:{"src":_vm.faviconUrl,"alt":""}}):_vm._e(),_vm._v(" "+_vm._s(_vm.displayDomain.split('/')[0])+" ")])])]):_vm._e(),_c('ul',{staticClass:"vis-checks"},_vm._l((_vm.checks),function(c,i){return _c('li',{key:i,class:['vis-check', 'vis-check--' + c.status]},[_c('span',{staticClass:"vis-check-icon"},[(c.status === 'ok')?_c('span',[_vm._v("✓")]):(c.status === 'warn')?_c('span',[_vm._v("⚠")]):(c.status === 'info')?_c('span',[_vm._v("i")]):_c('span',[_vm._v("✗")])]),_vm._v(" "+_vm._s(c.msg)+" ")])}),0)])])
+  render: (() => {
+function render(_ctx, _cache) {
+  const _component_k_field = _resolveComponent("k-field")
+
+  return (_openBlock(), _createBlock(_component_k_field, {
+    label: _ctx.resolvedLabel,
+    input: false,
+    class: "k-seo-preview-field"
+  }, {
+    default: _withCtx(() => [
+      _createElementVNode("div", { class: "vis-preview" }, [
+        _createCommentVNode(" Score badge "),
+        _createElementVNode("div", {
+          class: _normalizeClass(["vis-score", 'vis-score--' + _ctx.scoreClass])
+        }, [
+          _createElementVNode("span", { class: "vis-score-number" }, [
+            _createTextVNode(_toDisplayString(_ctx.score), 1 /* TEXT */),
+            _createElementVNode("small", null, "%")
+          ]),
+          _createElementVNode("span", { class: "vis-score-label" }, _toDisplayString(_ctx.scoreLabel), 1 /* TEXT */)
+        ], 2 /* CLASS */),
+        _createCommentVNode(" Tabs "),
+        _createElementVNode("div", { class: "vis-tabs" }, [
+          (_openBlock(true), _createElementBlock(_Fragment, null, _renderList([['google','Google'],['social',_ctx.$t('visibilizer.preview.tab.social')],['twitter','Twitter / X']], (t) => {
+            return (_openBlock(), _createElementBlock("button", {
+              key: t[0],
+              class: _normalizeClass(['vis-tab', _ctx.tab === t[0] && 'vis-tab--active']),
+              onClick: $event => (_ctx.tab = t[0])
+            }, _toDisplayString(t[1]), 11 /* TEXT, CLASS, PROPS */, ["onClick"]))
+          }), 128 /* KEYED_FRAGMENT */))
+        ]),
+        _createCommentVNode(" Google SERP preview "),
+        (_ctx.tab === 'google')
+          ? (_openBlock(), _createElementBlock("div", {
+              key: 0,
+              class: "vis-google"
+            }, [
+              _createElementVNode("div", { class: "vis-google-header" }, [
+                _createElementVNode("div", {
+                  class: _normalizeClass(["vis-google-favicon", { 'vis-has-icon': _ctx.faviconUrl }])
+                }, [
+                  (_ctx.faviconUrl)
+                    ? (_openBlock(), _createElementBlock("img", {
+                        key: 0,
+                        src: _ctx.faviconUrl,
+                        alt: ""
+                      }, null, 8 /* PROPS */, ["src"]))
+                    : (_openBlock(), _createElementBlock(_Fragment, { key: 1 }, [
+                        _createTextVNode("G")
+                      ], 64 /* STABLE_FRAGMENT */))
+                ], 2 /* CLASS */),
+                _createElementVNode("div", null, [
+                  _createElementVNode("div", { class: "vis-google-site" }, _toDisplayString(_ctx.ctx.siteTitle), 1 /* TEXT */),
+                  _createElementVNode("div", { class: "vis-google-url" }, _toDisplayString(_ctx.displayDomain) + _toDisplayString(_ctx.displayPath), 1 /* TEXT */)
+                ])
+              ]),
+              _createElementVNode("div", {
+                class: _normalizeClass(["vis-google-title", _ctx.titleLength > 60 ? 'vis-truncated' : ''])
+              }, _toDisplayString(_ctx.fullTitle || _ctx.$t('visibilizer.preview.placeholder.title')), 3 /* TEXT, CLASS */),
+              _createElementVNode("div", { class: "vis-google-desc" }, _toDisplayString(_ctx.seoDescription || _ctx.$t('visibilizer.preview.placeholder.description')), 1 /* TEXT */),
+              _createElementVNode("div", { class: "vis-char-row" }, [
+                _createElementVNode("span", { class: "vis-char-label" }, _toDisplayString(_ctx.$t('visibilizer.preview.chars.title')), 1 /* TEXT */),
+                _createElementVNode("div", { class: "vis-char-bar" }, [
+                  _createElementVNode("div", {
+                    class: "vis-char-fill",
+                    style: _normalizeStyle(_ctx.titleBar)
+                  }, null, 4 /* STYLE */)
+                ]),
+                _createElementVNode("span", {
+                  class: _normalizeClass(["vis-char-count", _ctx.titleLength > 60 ? 'vis-over' : ''])
+                }, _toDisplayString(_ctx.titleLength) + "/60", 3 /* TEXT, CLASS */)
+              ]),
+              _createElementVNode("div", { class: "vis-char-row" }, [
+                _createElementVNode("span", { class: "vis-char-label" }, _toDisplayString(_ctx.$t('visibilizer.preview.chars.description')), 1 /* TEXT */),
+                _createElementVNode("div", { class: "vis-char-bar" }, [
+                  _createElementVNode("div", {
+                    class: "vis-char-fill",
+                    style: _normalizeStyle(_ctx.descBar)
+                  }, null, 4 /* STYLE */)
+                ]),
+                _createElementVNode("span", {
+                  class: _normalizeClass(["vis-char-count", _ctx.descLength > 160 ? 'vis-over' : ''])
+                }, _toDisplayString(_ctx.descLength) + "/160", 3 /* TEXT, CLASS */)
+              ])
+            ]))
+          : _createCommentVNode("v-if", true),
+        _createCommentVNode(" OG / Social card "),
+        (_ctx.tab === 'social')
+          ? (_openBlock(), _createElementBlock("div", {
+              key: 1,
+              class: "vis-og"
+            }, [
+              _createElementVNode("div", {
+                class: _normalizeClass(["vis-og-image", !_ctx.ogImageUrl ? 'vis-og-image--empty' : ''])
+              }, [
+                (_ctx.ogImageUrl)
+                  ? (_openBlock(), _createElementBlock("img", {
+                      key: 0,
+                      src: _ctx.ogImageUrl,
+                      alt: ""
+                    }, null, 8 /* PROPS */, ["src"]))
+                  : (_openBlock(), _createElementBlock("span", {
+                      key: 1,
+                      class: "vis-og-placeholder"
+                    }, _toDisplayString(_ctx.$t('visibilizer.preview.placeholder.ogimage')), 1 /* TEXT */))
+              ], 2 /* CLASS */),
+              _createElementVNode("div", { class: "vis-og-body" }, [
+                _createElementVNode("div", { class: "vis-og-domain" }, [
+                  (_ctx.faviconUrl)
+                    ? (_openBlock(), _createElementBlock("img", {
+                        key: 0,
+                        class: "vis-domain-icon",
+                        src: _ctx.faviconUrl,
+                        alt: ""
+                      }, null, 8 /* PROPS */, ["src"]))
+                    : _createCommentVNode("v-if", true),
+                  _createTextVNode(" " + _toDisplayString(_ctx.displayDomain.split('/')[0].toUpperCase()), 1 /* TEXT */)
+                ]),
+                _createElementVNode("div", { class: "vis-og-title" }, _toDisplayString(_ctx.ogTitle || _ctx.$t('visibilizer.preview.placeholder.title')), 1 /* TEXT */),
+                _createElementVNode("div", { class: "vis-og-desc" }, _toDisplayString(_ctx.ogDescription || _ctx.$t('visibilizer.preview.placeholder.description')), 1 /* TEXT */)
+              ])
+            ]))
+          : _createCommentVNode("v-if", true),
+        _createCommentVNode(" Twitter / X card "),
+        (_ctx.tab === 'twitter')
+          ? (_openBlock(), _createElementBlock("div", {
+              key: 2,
+              class: "vis-twitter"
+            }, [
+              _createElementVNode("div", {
+                class: _normalizeClass(["vis-twitter-image", !_ctx.twitterImageUrl ? 'vis-twitter-image--empty' : ''])
+              }, [
+                (_ctx.twitterImageUrl)
+                  ? (_openBlock(), _createElementBlock("img", {
+                      key: 0,
+                      src: _ctx.twitterImageUrl,
+                      alt: ""
+                    }, null, 8 /* PROPS */, ["src"]))
+                  : (_openBlock(), _createElementBlock("span", {
+                      key: 1,
+                      class: "vis-og-placeholder"
+                    }, _toDisplayString(_ctx.$t('visibilizer.preview.placeholder.image')), 1 /* TEXT */))
+              ], 2 /* CLASS */),
+              _createElementVNode("div", { class: "vis-twitter-body" }, [
+                _createElementVNode("div", { class: "vis-twitter-title" }, _toDisplayString(_ctx.ogTitle || _ctx.$t('visibilizer.preview.placeholder.title')), 1 /* TEXT */),
+                _createElementVNode("div", { class: "vis-twitter-desc" }, _toDisplayString(_ctx.ogDescription || _ctx.$t('visibilizer.preview.placeholder.description')), 1 /* TEXT */),
+                _createElementVNode("div", {
+                  class: _normalizeClass(["vis-twitter-domain", { 'vis-has-icon': _ctx.faviconUrl }])
+                }, [
+                  (_ctx.faviconUrl)
+                    ? (_openBlock(), _createElementBlock("img", {
+                        key: 0,
+                        class: "vis-domain-icon",
+                        src: _ctx.faviconUrl,
+                        alt: ""
+                      }, null, 8 /* PROPS */, ["src"]))
+                    : _createCommentVNode("v-if", true),
+                  _createTextVNode(" " + _toDisplayString(_ctx.displayDomain.split('/')[0]), 1 /* TEXT */)
+                ], 2 /* CLASS */)
+              ])
+            ]))
+          : _createCommentVNode("v-if", true),
+        _createCommentVNode(" Checks "),
+        _createElementVNode("ul", { class: "vis-checks" }, [
+          (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.checks, (c, i) => {
+            return (_openBlock(), _createElementBlock("li", {
+              key: i,
+              class: _normalizeClass(['vis-check', 'vis-check--' + c.status])
+            }, [
+              _createElementVNode("span", { class: "vis-check-icon" }, [
+                (c.status === 'ok')
+                  ? (_openBlock(), _createElementBlock("span", { key: 0 }, "✓"))
+                  : (c.status === 'warn')
+                    ? (_openBlock(), _createElementBlock("span", { key: 1 }, "⚠"))
+                    : (c.status === 'info')
+                      ? (_openBlock(), _createElementBlock("span", { key: 2 }, "i"))
+                      : (_openBlock(), _createElementBlock("span", { key: 3 }, "✗"))
+              ]),
+              _createTextVNode(" " + _toDisplayString(c.msg), 1 /* TEXT */)
+            ], 2 /* CLASS */))
+          }), 128 /* KEYED_FRAGMENT */))
+        ])
+      ])
+    ]),
+    _: 1 /* STABLE */
+  }, 8 /* PROPS */, ["label"]))
 }
-var staticRenderFns = []
-return { render, staticRenderFns }
+return render
 })(),
 };
 
@@ -451,8 +638,8 @@ const AltsDrawer = {
       for (const row of rows) {
         const n = this.items.findIndex(i => i.id === row.id)
         if (n === -1) continue
-        this.$set(this.items, n, row)
-        this.$set(this.drafts, row.id, row.alt)
+        this.items[n] = row
+        this.drafts[row.id] = row.alt
       }
       this.onSaved(rows)
     },
@@ -463,19 +650,19 @@ const AltsDrawer = {
     async save(item) {
       const value = (this.drafts[item.id] || '').trim()
       if (value === item.alt || this.saving[item.id]) return
-      this.$set(this.saving, item.id, true)
+      this.saving[item.id] = true
       try {
         const row = await this.$api.post('rllngr/visibilizer-audit/alt', { id: item.id, alt: value })
         this.replace([row])
-        this.$set(this.done, item.id, true)
+        this.done[item.id] = true
       } catch (e) {
         this.$panel.notification.error(e)
       } finally {
-        this.$set(this.saving, item.id, false)
+        this.saving[item.id] = false
       }
     },
     useGenerated(item) {
-      this.$set(this.drafts, item.id, item.generated)
+      this.drafts[item.id] = item.generated
       this.save(item)
     },
     // Entrée : enregistre et passe à l'image suivante (Maj + Entrée pour un retour à la ligne)
@@ -502,14 +689,134 @@ const AltsDrawer = {
       if (!visible) this.flush()
     },
   },
-  beforeDestroy() {
+  beforeUnmount() {
     this.flush()
   },
-  ...(() => {
-var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-drawer',_vm._b({staticClass:"k-vis-alts-drawer",on:{"cancel":function($event){return _vm.$emit('cancel')},"submit":function($event){return _vm.$emit('submit')}},scopedSlots:_vm._u([{key:"options",fn:function(){return [(_vm.fillable)?_c('k-button',{staticClass:"k-drawer-option",attrs:{"icon":"wand","text":_vm.$t('visibilizer.fill') + ' (' + _vm.fillable + ')',"disabled":_vm.filling},on:{"click":_vm.fill}}):_vm._e(),_c('k-button',{staticClass:"k-drawer-option",attrs:{"icon":"filter","theme":_vm.pinned ? 'notice' : null,"text":_vm.$t('visibilizer.alts.only'),"disabled":!_vm.pinned && !_vm.missing},on:{"click":_vm.toggleOnly}}),_c('k-button',{staticClass:"k-drawer-option",attrs:{"icon":"edit","link":_vm.page.panel,"title":_vm.$t('visibilizer.open.panel')}})]},proxy:true}])},'k-drawer',_vm.$props,false),[_c('p',{staticClass:"k-vis-alts-summary"},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.alts.summary', { count: _vm.items.length, missing: _vm.missing }))+" "),_c('span',{staticClass:"k-vis-alts-path"},[_vm._v(_vm._s(_vm.page.path))])]),(!_vm.shown.length)?_c('p',{staticClass:"k-vis-alts-empty"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty.filter')))]):_vm._e(),_c('ul',{staticClass:"k-vis-alts"},_vm._l((_vm.shown),function(item){return _c('li',{key:item.id,attrs:{"data-level":_vm.level(item)}},[_c('a',{staticClass:"k-vis-alts-thumb",attrs:{"href":item.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[(item.thumb)?_c('img',{attrs:{"src":item.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('div',{staticClass:"k-vis-alts-body"},[_c('div',{staticClass:"k-vis-alts-head"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.level(item)}}),_c('k-link',{staticClass:"k-vis-alts-name",attrs:{"to":item.panel}},[_vm._v(_vm._s(item.filename))]),_c('span',{staticClass:"k-vis-alts-meta",attrs:{"data-heavy":_vm.heavy(item) ? 'true' : null}},[_vm._v(_vm._s(item.niceSize)+" · "+_vm._s(item.width)+" × "+_vm._s(item.height))])],1),_c('textarea',{attrs:{"rows":"2","placeholder":item.generated || _vm.$t('visibilizer.alts.placeholder')},domProps:{"value":_vm.drafts[item.id]},on:{"input":function($event){_vm.$set(_vm.drafts, item.id, $event.target.value); _vm.$set(_vm.done, item.id, false)},"blur":function($event){return _vm.save(item)},"keydown":function($event){if(!$event.type.indexOf('key')&&_vm._k($event.keyCode,"enter",13,$event.key,"Enter"))return null;if($event.ctrlKey||$event.shiftKey||$event.altKey||$event.metaKey)return null;$event.preventDefault();return _vm.next.apply(null, arguments)}}}),_c('div',{staticClass:"k-vis-alts-foot"},[(!_vm.drafts[item.id] && item.generated)?_c('button',{staticClass:"k-vis-alts-use",attrs:{"type":"button"},on:{"click":function($event){return _vm.useGenerated(item)}}},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.alts.use'))+" ")]):_vm._e(),(_vm.saving[item.id])?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.settings.saving')))]):(_vm.done[item.id])?_c('span',{attrs:{"data-level":"ok"}},[_vm._v(_vm._s(_vm.$t('visibilizer.alts.saved')))]):_vm._e()])])])}),0)])
+  render: (() => {
+function render(_ctx, _cache) {
+  const _component_k_button = _resolveComponent("k-button")
+  const _component_k_link = _resolveComponent("k-link")
+  const _component_k_drawer = _resolveComponent("k-drawer")
+
+  return (_openBlock(), _createBlock(_component_k_drawer, _mergeProps(_ctx.$props, {
+    class: "k-vis-alts-drawer",
+    onCancel: _cache[1] || (_cache[1] = $event => (_ctx.$emit('cancel'))),
+    onSubmit: _cache[2] || (_cache[2] = $event => (_ctx.$emit('submit')))
+  }), {
+    options: _withCtx(() => [
+      (_ctx.fillable)
+        ? (_openBlock(), _createBlock(_component_k_button, {
+            key: 0,
+            class: "k-drawer-option",
+            icon: "wand",
+            text: _ctx.$t('visibilizer.fill') + ' (' + _ctx.fillable + ')',
+            disabled: _ctx.filling,
+            onClick: _ctx.fill
+          }, null, 8 /* PROPS */, ["text", "disabled", "onClick"]))
+        : _createCommentVNode("v-if", true),
+      _createVNode(_component_k_button, {
+        class: "k-drawer-option",
+        icon: "filter",
+        theme: _ctx.pinned ? 'notice' : null,
+        text: _ctx.$t('visibilizer.alts.only'),
+        disabled: !_ctx.pinned && !_ctx.missing,
+        onClick: _ctx.toggleOnly
+      }, null, 8 /* PROPS */, ["theme", "text", "disabled", "onClick"]),
+      _createVNode(_component_k_button, {
+        class: "k-drawer-option",
+        icon: "edit",
+        link: _ctx.page.panel,
+        title: _ctx.$t('visibilizer.open.panel')
+      }, null, 8 /* PROPS */, ["link", "title"])
+    ]),
+    default: _withCtx(() => [
+      _createElementVNode("p", { class: "k-vis-alts-summary" }, [
+        _createTextVNode(_toDisplayString(_ctx.$t('visibilizer.alts.summary', { count: _ctx.items.length, missing: _ctx.missing })) + " ", 1 /* TEXT */),
+        _createElementVNode("span", { class: "k-vis-alts-path" }, _toDisplayString(_ctx.page.path), 1 /* TEXT */)
+      ]),
+      (!_ctx.shown.length)
+        ? (_openBlock(), _createElementBlock("p", {
+            key: 0,
+            class: "k-vis-alts-empty"
+          }, _toDisplayString(_ctx.$t('visibilizer.empty.filter')), 1 /* TEXT */))
+        : _createCommentVNode("v-if", true),
+      _createElementVNode("ul", { class: "k-vis-alts" }, [
+        (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.shown, (item) => {
+          return (_openBlock(), _createElementBlock("li", {
+            key: item.id,
+            "data-level": _ctx.level(item)
+          }, [
+            _createElementVNode("a", {
+              href: item.url,
+              target: "_blank",
+              rel: "noopener",
+              class: "k-vis-alts-thumb",
+              title: _ctx.$t('visibilizer.open.site')
+            }, [
+              (item.thumb)
+                ? (_openBlock(), _createElementBlock("img", {
+                    key: 0,
+                    src: item.thumb,
+                    alt: "",
+                    loading: "lazy"
+                  }, null, 8 /* PROPS */, ["src"]))
+                : _createCommentVNode("v-if", true)
+            ], 8 /* PROPS */, ["href", "title"]),
+            _createElementVNode("div", { class: "k-vis-alts-body" }, [
+              _createElementVNode("div", { class: "k-vis-alts-head" }, [
+                _createElementVNode("span", {
+                  class: "k-vis-dot",
+                  "data-level": _ctx.level(item)
+                }, null, 8 /* PROPS */, ["data-level"]),
+                _createVNode(_component_k_link, {
+                  to: item.panel,
+                  class: "k-vis-alts-name"
+                }, {
+                  default: _withCtx(() => [
+                    _createTextVNode(_toDisplayString(item.filename), 1 /* TEXT */)
+                  ]),
+                  _: 2 /* DYNAMIC */
+                }, 1032 /* PROPS, DYNAMIC_SLOTS */, ["to"]),
+                _createElementVNode("span", {
+                  class: "k-vis-alts-meta",
+                  "data-heavy": _ctx.heavy(item) ? 'true' : null
+                }, _toDisplayString(item.niceSize) + " · " + _toDisplayString(item.width) + " × " + _toDisplayString(item.height), 9 /* TEXT, PROPS */, ["data-heavy"])
+              ]),
+              _createElementVNode("textarea", {
+                rows: "2",
+                value: _ctx.drafts[item.id],
+                placeholder: item.generated || _ctx.$t('visibilizer.alts.placeholder'),
+                onInput: $event => {_ctx.drafts[item.id] = $event.target.value; _ctx.done[item.id] = false},
+                onBlur: $event => (_ctx.save(item)),
+                onKeydown: _cache[0] || (_cache[0] = _withKeys(_withModifiers((...args) => (_ctx.next && _ctx.next(...args)), ["exact","prevent"]), ["enter"]))
+              }, null, 40 /* PROPS, NEED_HYDRATION */, ["value", "placeholder", "onInput", "onBlur"]),
+              _createElementVNode("div", { class: "k-vis-alts-foot" }, [
+                (!_ctx.drafts[item.id] && item.generated)
+                  ? (_openBlock(), _createElementBlock("button", {
+                      key: 0,
+                      type: "button",
+                      class: "k-vis-alts-use",
+                      onClick: $event => (_ctx.useGenerated(item))
+                    }, _toDisplayString(_ctx.$t('visibilizer.alts.use')), 9 /* TEXT, PROPS */, ["onClick"]))
+                  : _createCommentVNode("v-if", true),
+                (_ctx.saving[item.id])
+                  ? (_openBlock(), _createElementBlock("span", { key: 1 }, _toDisplayString(_ctx.$t('visibilizer.settings.saving')), 1 /* TEXT */))
+                  : (_ctx.done[item.id])
+                    ? (_openBlock(), _createElementBlock("span", {
+                        key: 2,
+                        "data-level": "ok"
+                      }, _toDisplayString(_ctx.$t('visibilizer.alts.saved')), 1 /* TEXT */))
+                    : _createCommentVNode("v-if", true)
+              ])
+            ])
+          ], 8 /* PROPS */, ["data-level"]))
+        }), 128 /* KEYED_FRAGMENT */))
+      ])
+    ]),
+    _: 1 /* STABLE */
+  }, 16 /* FULL_PROPS */))
 }
-var staticRenderFns = []
-return { render, staticRenderFns }
+return render
 })(),
 }
 
@@ -542,11 +849,65 @@ const LinksDrawer = {
   methods: {
     level: linkLevel,
   },
-  ...(() => {
-var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-drawer',_vm._b({staticClass:"k-vis-alts-drawer",on:{"cancel":function($event){return _vm.$emit('cancel')},"submit":function($event){return _vm.$emit('submit')}},scopedSlots:_vm._u([{key:"options",fn:function(){return [_c('k-button',{staticClass:"k-drawer-option",attrs:{"icon":"edit","link":_vm.page.panel,"title":_vm.$t('visibilizer.open.panel')}})]},proxy:true}])},'k-drawer',_vm.$props,false),[_c('p',{staticClass:"k-vis-alts-summary"},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.links.summary', { count: _vm.rows.length, broken: _vm.broken }))+" "),_c('span',{staticClass:"k-vis-alts-path"},[_vm._v(_vm._s(_vm.page.path))])]),_c('ul',{staticClass:"k-vis-alts k-vis-links"},_vm._l((_vm.rows),function(row){return _c('li',{key:row.href,attrs:{"data-level":_vm.level(row)}},[_c('div',{staticClass:"k-vis-alts-body"},[_c('div',{staticClass:"k-vis-alts-head"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.level(row)}}),_c('a',{staticClass:"k-vis-alts-name",attrs:{"href":row.result && row.result.internal ? row.label : row.href,"target":"_blank","rel":"noopener","title":row.href}},[_vm._v(_vm._s(row.label))]),_c('span',{staticClass:"k-vis-alts-meta"},[_vm._v(_vm._s(row.result && row.result.code ? row.result.code : '—'))])]),_c('div',{staticClass:"k-vis-alts-foot"},[_c('span',[_vm._v(_vm._s(_vm.$t(row.internal ? 'visibilizer.internal' : 'visibilizer.external'))+" · "+_vm._s(_vm.detail(row)))]),(row.from.length > 1)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.links.elsewhere', { count: row.from.length - 1 })))]):_vm._e()])])])}),0)])
+  render: (() => {
+function render(_ctx, _cache) {
+  const _component_k_button = _resolveComponent("k-button")
+  const _component_k_drawer = _resolveComponent("k-drawer")
+
+  return (_openBlock(), _createBlock(_component_k_drawer, _mergeProps(_ctx.$props, {
+    class: "k-vis-alts-drawer",
+    onCancel: _cache[0] || (_cache[0] = $event => (_ctx.$emit('cancel'))),
+    onSubmit: _cache[1] || (_cache[1] = $event => (_ctx.$emit('submit')))
+  }), {
+    options: _withCtx(() => [
+      _createVNode(_component_k_button, {
+        class: "k-drawer-option",
+        icon: "edit",
+        link: _ctx.page.panel,
+        title: _ctx.$t('visibilizer.open.panel')
+      }, null, 8 /* PROPS */, ["link", "title"])
+    ]),
+    default: _withCtx(() => [
+      _createElementVNode("p", { class: "k-vis-alts-summary" }, [
+        _createTextVNode(_toDisplayString(_ctx.$t('visibilizer.links.summary', { count: _ctx.rows.length, broken: _ctx.broken })) + " ", 1 /* TEXT */),
+        _createElementVNode("span", { class: "k-vis-alts-path" }, _toDisplayString(_ctx.page.path), 1 /* TEXT */)
+      ]),
+      _createElementVNode("ul", { class: "k-vis-alts k-vis-links" }, [
+        (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.rows, (row) => {
+          return (_openBlock(), _createElementBlock("li", {
+            key: row.href,
+            "data-level": _ctx.level(row)
+          }, [
+            _createElementVNode("div", { class: "k-vis-alts-body" }, [
+              _createElementVNode("div", { class: "k-vis-alts-head" }, [
+                _createElementVNode("span", {
+                  class: "k-vis-dot",
+                  "data-level": _ctx.level(row)
+                }, null, 8 /* PROPS */, ["data-level"]),
+                _createElementVNode("a", {
+                  href: row.result && row.result.internal ? row.label : row.href,
+                  target: "_blank",
+                  rel: "noopener",
+                  class: "k-vis-alts-name",
+                  title: row.href
+                }, _toDisplayString(row.label), 9 /* TEXT, PROPS */, ["href", "title"]),
+                _createElementVNode("span", { class: "k-vis-alts-meta" }, _toDisplayString(row.result && row.result.code ? row.result.code : '—'), 1 /* TEXT */)
+              ]),
+              _createElementVNode("div", { class: "k-vis-alts-foot" }, [
+                _createElementVNode("span", null, _toDisplayString(_ctx.$t(row.internal ? 'visibilizer.internal' : 'visibilizer.external')) + " · " + _toDisplayString(_ctx.detail(row)), 1 /* TEXT */),
+                (row.from.length > 1)
+                  ? (_openBlock(), _createElementBlock("span", { key: 0 }, _toDisplayString(_ctx.$t('visibilizer.links.elsewhere', { count: row.from.length - 1 })), 1 /* TEXT */))
+                  : _createCommentVNode("v-if", true)
+              ])
+            ])
+          ], 8 /* PROPS */, ["data-level"]))
+        }), 128 /* KEYED_FRAGMENT */))
+      ])
+    ]),
+    _: 1 /* STABLE */
+  }, 16 /* FULL_PROPS */))
 }
-var staticRenderFns = []
-return { render, staticRenderFns }
+return render
 })(),
 }
 
@@ -843,14 +1204,14 @@ const SeoView = {
       window.history.replaceState(window.history.state, '', url)
     },
     toggle(key) {
-      this.$set(this.open, key, !this.open[key])
+      this.open[key] = !this.open[key]
     },
     // Compteurs des textes alternatifs : « 1 image décrite » / « 3 images décrites »
     countText(key, count) {
       return this.$t(key + (count === 1 && key.startsWith('visibilizer.count.alts.') ? '.one' : ''), { count })
     },
     setMode(mode) {
-      this.$set(this.modes, this.current, mode)
+      this.modes[this.current] = mode
       this.limit = LIMIT
       try {
         window.localStorage.setItem('visibilizer.' + this.current, mode)
@@ -900,7 +1261,7 @@ const SeoView = {
     },
     // Clic sur une ligne : un parent se replie / se déplie, une page ouvre son tiroir
     clickNode(row) {
-      if (row.node.children.length) this.$set(this.expanded, row.node.id, !row.open)
+      if (row.node.children.length) this.expanded[row.node.id] = !row.open
       else this.openNode(row.node)
     },
     openNode(n) {
@@ -931,7 +1292,7 @@ const SeoView = {
           page: { id: group.id, title: group.title, path: group.path, panel: group.panel },
           images: group.items,
           only: this.level !== 'all',
-          onSaved: rows => rows.forEach(row => this.$set(this.saved, row.id, row)),
+          onSaved: rows => rows.forEach(row => this.saved[row.id] = row),
         },
         on: {
           submit: () => this.$panel.drawer.close(),
@@ -961,10 +1322,10 @@ const SeoView = {
         const batch = hrefs.slice(i, i + BATCH)
         try {
           const res = await this.$api.post('rllngr/visibilizer-audit/links', { hrefs: batch, force })
-          for (const href of Object.keys(res || {})) this.$set(this.results, href, res[href])
+          for (const href of Object.keys(res || {})) this.results[href] = res[href]
         } catch (e) {
           // Le lot reste sans résultat, signalé sur ses lignes ; une seule notification pour toute la passe
-          for (const href of batch) this.$set(this.failed, href, true)
+          for (const href of batch) this.failed[href] = true
           error = e
         }
         this.checking.done = Math.min(hrefs.length, i + BATCH)
@@ -1022,16 +1383,910 @@ const SeoView = {
       await this.check(this.links.filter(l => !l.internal).map(l => l.href), true)
     },
   },
-  ...(() => {
-var render = function render(){var _vm=this,_c=_vm._self._c;return _c('k-panel-inside',{staticClass:"k-visibilizer-view"},[_c('div',{staticClass:"k-vis"},[_c('header',{staticClass:"k-vis-ink k-vis-header"},[_c('h1',[_vm._v(_vm._s(_vm.$t('visibilizer.seo')))]),_c('nav',{staticClass:"k-vis-tabs"},_vm._l((_vm.tabs),function(t){return _c('button',{key:t.key,attrs:{"type":"button","aria-current":t.key === _vm.current ? 'true' : null},on:{"click":function($event){return _vm.select(t.key)}}},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.tab.' + t.key))+" "),(t.count !== null)?_c('span',{staticClass:"k-vis-tab-count"},[_vm._v(_vm._s(t.count))]):_vm._e()])}),0)]),(_vm.current !== 'settings')?_c('div',{staticClass:"k-vis-cards"},_vm._l((_vm.cards),function(c){return _c('button',{key:c.key,staticClass:"k-vis-card",attrs:{"type":"button","data-color":c.color},on:{"click":function($event){return _vm.select(c.tab, c.counts.error ? 'error' : 'all')}}},[_c('span',{staticClass:"k-vis-card-dot",attrs:{"data-size":c.text.length > 3 ? 's' : 'l'}},[_c('span',{staticClass:"k-vis-card-value"},[_vm._v(_vm._s(c.text))]),_c('span',{staticClass:"k-vis-card-unit"},[_vm._v(_vm._s(c.unit))])]),_c('span',{staticClass:"k-vis-card-label"},[_vm._v(_vm._s(_vm.$t('visibilizer.card.' + c.key)))]),_c('span',{staticClass:"k-vis-card-bar",attrs:{"aria-hidden":"true"}},_vm._l((c.segments),function(s){return _c('span',{key:s.level,style:({ width: s.width + '%' }),attrs:{"data-level":s.level}})}),0),_c('span',{staticClass:"k-vis-card-legend"},[_vm._l((c.legend),function(l){return _c('span',{key:l.level,attrs:{"data-level":l.level}},[_vm._v(_vm._s(l.text))])}),(!c.total)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):_vm._e()],2)])}),0):_vm._e(),(_vm.current !== 'settings')?_c('div',{staticClass:"k-vis-mode"},[_c('button',{staticClass:"k-vis-switch",attrs:{"type":"button","role":"switch","aria-checked":_vm.fallbacks ? 'true' : 'false'},on:{"click":_vm.toggleFallbacks}},[_c('span',{staticClass:"k-vis-switch-track"},[_c('span',{staticClass:"k-vis-switch-thumb"})]),_vm._v(" "+_vm._s(_vm.$t('visibilizer.fallbacks'))+" ")]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t(_vm.fallbacks ? 'visibilizer.fallbacks.on' : 'visibilizer.fallbacks.off')))])]):_vm._e(),(_vm.current === 'settings')?[_vm._l((_vm.settingsGroups),function(group,i){return [_c('section',{key:group.key,staticClass:"k-vis-block k-vis-settings"},[(i === 0)?_c('div',{staticClass:"k-vis-settings-split"},[_c('k-visibilizer-preview',{staticClass:"k-vis-settings-preview",attrs:{"label":_vm.$t('visibilizer.settings.preview'),"live-values":_vm.form,"live-context":_vm.previewContext,"initial-tab":"social"}}),_c('k-fieldset',{attrs:{"fields":group.fields,"value":_vm.form,"novalidate":true},on:{"input":function($event){_vm.form = $event}}})],1):[_c('k-fieldset',{attrs:{"fields":group.fields,"value":_vm.form,"novalidate":true},on:{"input":function($event){_vm.form = $event}}}),(group.key === 'icon_headline')?_c('div',{staticClass:"k-vis-icon-state"},[(_vm.iconPreviews.length)?_c('div',{staticClass:"k-vis-icon-previews"},_vm._l((_vm.iconPreviews),function(p){return _c('figure',{key:p.key,attrs:{"data-kind":p.key}},[_c('span',{staticClass:"k-vis-icon-frame"},[_c('img',{attrs:{"src":p.src,"alt":""}})]),_c('figcaption',[_vm._v(_vm._s(p.label)+" "),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(p.size))])])])}),0):_vm._e(),_c('ul',{staticClass:"k-vis-icon-checks"},_vm._l((_vm.settings.icons.checks),function(c){return _c('li',{key:c.key + (c.data ? c.data.file || '' : '')},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":c.level}}),_vm._v(" "+_vm._s(_vm.$t('visibilizer.icon.' + c.key, c.data || {}))+" ")])}),0)]):_vm._e()]],2)]}),_c('div',{staticClass:"k-vis-block k-vis-settings-bar"},[(!_vm.settings.editable)?_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.readonly')))]):(_vm.settingsChanged)?_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.unsaved')))]):_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.stored')))]),_c('span',{staticClass:"k-vis-tools"},[(_vm.settingsChanged)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.resetSettings}},[_vm._v(_vm._s(_vm.$t('visibilizer.settings.reset')))]):_vm._e(),_c('button',{staticClass:"k-vis-button k-vis-button-primary",attrs:{"type":"button","disabled":!_vm.settingsChanged || _vm.saving || !_vm.settings.editable},on:{"click":_vm.saveSettings}},[_vm._v(" "+_vm._s(_vm.$t(_vm.saving ? 'visibilizer.settings.saving' : 'visibilizer.settings.save'))+" ")])])]),_c('section',{staticClass:"k-vis-block"},[_c('div',{staticClass:"k-vis-files-head"},[_c('h2',{staticClass:"k-vis-caption"},[_vm._v(_vm._s(_vm.$t('visibilizer.files')))]),(_vm.settings.editable)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.uploadFiles}},[_c('k-icon',{attrs:{"type":"upload"}}),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.files.upload')))])],1):_vm._e()]),(!_vm.settings.files.length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):_c('ul',{staticClass:"k-vis-files"},_vm._l((_vm.settings.files),function(file){return _c('li',{key:file.id},[_c('k-link',{staticClass:"k-vis-files-thumb",attrs:{"to":file.panel}},[(file.thumb)?_c('img',{attrs:{"src":file.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('span',{staticClass:"k-vis-files-info"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":file.panel}},[_vm._v(_vm._s(file.filename))]),_c('span',{staticClass:"k-vis-path"},[_vm._v(_vm._s(file.niceSize)),(file.size)?[_vm._v(" · "+_vm._s(file.size))]:_vm._e()],2),_c('span',{staticClass:"k-vis-files-used"},[_vm._l((_vm.fileUsage(file)),function(label){return _c('span',{key:label,staticClass:"k-vis-badge"},[_vm._v(_vm._s(label))])}),(!file.used.length)?_c('span',{staticClass:"k-vis-badge k-vis-badge-warn"},[_vm._v(_vm._s(_vm.$t('visibilizer.files.unused')))]):_vm._e()],2)],1)],1)}),0)]),_c('section',{staticClass:"k-vis-block"},[_c('h2',{staticClass:"k-vis-caption"},[_vm._v(_vm._s(_vm.$t('visibilizer.config')))]),_c('dl',{staticClass:"k-vis-config"},[_vm._l((_vm.configRows),function(row){return [_c('dt',{key:row.key + ':k'},[_vm._v(_vm._s(row.key))]),_c('dd',{key:row.key + ':v'},[_vm._v(_vm._s(row.value))])]})],2)])]:_c('section',{staticClass:"k-vis-block"},[_c('div',{staticClass:"k-vis-toolbar"},[_c('nav',{staticClass:"k-vis-filters"},_vm._l((_vm.filters),function(f){return _c('button',{key:f.key,attrs:{"type":"button","data-level":f.key,"aria-current":f.key === _vm.level ? 'true' : null,"disabled":!f.count && f.key !== 'all'},on:{"click":function($event){_vm.level = f.key}}},[(f.key !== 'all')?_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":f.key}}):_vm._e(),_vm._v(" "+_vm._s(_vm.$t(f.key === 'all' ? 'visibilizer.filter.all' : 'visibilizer.level.' + f.key))+" "),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(f.count))])])}),0),_c('div',{staticClass:"k-vis-tools"},[(_vm.modes[_vm.current])?_c('nav',{staticClass:"k-vis-filters k-vis-modes"},_vm._l((['pages', 'list']),function(m){return _c('button',{key:m,attrs:{"type":"button","aria-current":m === _vm.modes[_vm.current] ? 'true' : null},on:{"click":function($event){return _vm.setMode(m)}}},[_c('k-icon',{attrs:{"type":m === 'pages' ? 'folder' : 'list-bullet'}}),_vm._v(" "+_vm._s(_vm.$t('visibilizer.images.' + m))+" ")],1)}),0):_vm._e(),(_vm.current === 'images' && _vm.fillable)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button"},on:{"click":_vm.fill}},[_c('k-icon',{attrs:{"type":"wand"}}),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.fill'))+" ("+_vm._s(_vm.fillable)+")")])],1):_vm._e(),(_vm.current === 'links' && _vm.links.length)?_c('button',{staticClass:"k-vis-button",attrs:{"type":"button","disabled":!!_vm.checking},on:{"click":_vm.recheck}},[_c('k-icon',{attrs:{"type":"refresh"}}),(_vm.checking)?_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.checking', _vm.checking)))]):_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.recheck')))])],1):_vm._e(),_c('label',{staticClass:"k-vis-search"},[_c('k-icon',{attrs:{"type":"search"}}),_c('input',{directives:[{name:"model",rawName:"v-model",value:(_vm.query),expression:"query"}],attrs:{"type":"search","placeholder":_vm.$t('visibilizer.search')},domProps:{"value":(_vm.query)},on:{"input":function($event){if($event.target.composing)return;_vm.query=$event.target.value}}})],1)])]),(!_vm.source(_vm.current).length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty')))]):(!_vm.rows.length)?_c('p',{staticClass:"k-vis-message"},[_vm._v(_vm._s(_vm.$t('visibilizer.empty.filter')))]):(_vm.current === 'pages')?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"pages"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.page')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.title')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.description')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.image')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.index')))]),_c('span')]),_vm._l((_vm.visibleRows),function(row){return [_c('div',{key:row.id,staticClass:"k-vis-row",class:{ open: _vm.open[row.id] },on:{"click":function($event){return _vm.toggle(row.id)}}},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.pageLevel(row),"title":_vm.$t('visibilizer.level.' + _vm.pageLevel(row))}}),_c('span',{staticClass:"k-vis-cell-page"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.panel},nativeOn:{"click":function($event){$event.stopPropagation();}}},[_vm._v(_vm._s(row.title))]),_c('span',{staticClass:"k-vis-path",attrs:{"title":row.path}},[_vm._v(_vm._s(row.path))])],1),_c('span',{staticClass:"k-vis-cell-text",attrs:{"data-level":_vm.checkLevel(row.checks.title)}},[(row.metaTitle.source !== 'custom')?_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.sourceLabel(row.metaTitle)))]):_vm._e(),_c('span',{class:{ 'k-vis-muted': row.metaTitle.source !== 'custom' }},[_vm._v(_vm._s(row.metaTitle.value))])]),_c('span',{staticClass:"k-vis-cell-text k-vis-clamp",attrs:{"data-level":_vm.checkLevel(row.checks.description)}},[(row.description.source !== 'custom' && row.description.source !== 'none')?_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.sourceLabel(row.description)))]):_vm._e(),(row.description.value)?_c('span',{class:{ 'k-vis-muted': row.description.source !== 'custom' }},[_vm._v(_vm._s(row.description.value))]):_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(_vm.$t('visibilizer.none')))])]),_c('span',{staticClass:"k-vis-cell-thumb",attrs:{"data-level":_vm.checkLevel(row.checks.image)}},[(row.image && row.image.thumb)?_c('img',{attrs:{"src":row.image.thumb,"alt":"","loading":"lazy"}}):_vm._e(),(row.image && row.image.source !== 'custom')?_c('span',{staticClass:"k-vis-badge k-vis-thumb-badge",attrs:{"title":_vm.sourceLabel(row.image)}},[_vm._v(_vm._s(row.image.source === 'field' ? row.image.field : _vm.sourceLabel(row.image)))]):_vm._e()]),_c('span',{staticClass:"k-vis-cell-index"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.indexable ? 'ok' : 'off',"title":row.indexable ? _vm.$t('visibilizer.indexable') : _vm.$t('visibilizer.noindex', { robots: row.robots })}})]),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[_c('k-link',{attrs:{"to":row.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1),_c('a',{attrs:{"href":row.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)],1)]),(_vm.open[row.id])?_c('ul',{key:row.id + ':issues',staticClass:"k-vis-issues"},[_vm._l((_vm.issues(row)),function(i,n){return _c('li',{key:n,class:{ 'k-vis-muted': !_vm.counts(i) }},[_vm._v(_vm._s(_vm.issue(i)))])}),(!_vm.issues(row).length)?_c('li',{attrs:{"data-level":"ok"}},[_vm._v(_vm._s(_vm.$t('visibilizer.level.ok')))]):_vm._e()],2):_vm._e()]})],2):(_vm.byPage)?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"by-page","data-kind":_vm.current}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),(_vm.current === 'images')?_c('span'):_vm._e(),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.page')))]),_c('span',[_vm._v(_vm._s(_vm.$t(_vm.current === 'images' ? 'visibilizer.col.alt' : 'visibilizer.col.status')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.tab.' + _vm.current)))]),_c('span')]),_vm._l((_vm.pageRows),function(row){return _c('div',{key:row.node.id,staticClass:"k-vis-row",attrs:{"data-depth":row.depth},on:{"click":function($event){return _vm.clickNode(row)}}},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.level,"title":_vm.$t('visibilizer.level.' + (row.level === 'pending' ? 'ok' : row.level))}}),(_vm.current === 'images')?_c('span',{staticClass:"k-vis-stack"},_vm._l((row.thumbs),function(i){return _c('img',{key:i.id,attrs:{"src":i.thumb,"alt":"","loading":"lazy"}})}),0):_vm._e(),_c('span',{staticClass:"k-vis-cell-page k-vis-cell-tree",style:({ paddingLeft: row.depth * 1.25 + 'rem' })},[_c('span',{staticClass:"k-vis-link"},[(row.node.children.length)?_c('k-icon',{staticClass:"k-vis-chevron",attrs:{"type":row.open ? 'angle-down' : 'angle-right'}}):_vm._e(),_vm._v(" "+_vm._s(row.node.title)+" ")],1),_c('span',{staticClass:"k-vis-path",attrs:{"title":row.node.path}},[_vm._v(" "+_vm._s(row.node.path)),(row.pages)?[_vm._v(" · "+_vm._s(_vm.$t('visibilizer.subpages', { count: row.pages })))]:_vm._e()],2)]),_c('span',{staticClass:"k-vis-cell-text k-vis-legend",attrs:{"data-level":row.legendLevel || row.level}},_vm._l((row.legend),function(l){return _c('span',{key:l.level,attrs:{"data-level":l.level}},[_vm._v(_vm._s(l.text))])}),0),_c('span',{staticClass:"k-vis-cell-meta"},[_c('span',[_vm._v(_vm._s(row.total))]),(row.heavy)?_c('span',{staticClass:"k-vis-flag"},[_vm._v(_vm._s(_vm.$t('visibilizer.images.heavy', { count: row.heavy })))]):_vm._e()]),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[(row.node.items.length)?_c('button',{attrs:{"type":"button","title":_vm.$t(_vm.current === 'images' ? 'visibilizer.images.open' : 'visibilizer.links.open')},on:{"click":function($event){return _vm.openNode(row.node)}}},[_c('k-icon',{attrs:{"type":_vm.current === 'images' ? 'image' : 'url'}})],1):_vm._e(),(row.node.panel)?_c('k-link',{attrs:{"to":row.node.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1):_vm._e()],1)])})],2):(_vm.current === 'images')?_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"images"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span'),_c('span'),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.file')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.alt')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.weight')))]),_c('span')]),_vm._l((_vm.visibleRows),function(row){return _c('div',{key:row.id,staticClass:"k-vis-row"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":_vm.levelOf(row),"title":row.issues.map(_vm.issue).join(' · ') || _vm.$t('visibilizer.level.ok')}}),_c('span',{staticClass:"k-vis-cell-thumb"},[(row.thumb)?_c('img',{attrs:{"src":row.thumb,"alt":"","loading":"lazy"}}):_vm._e()]),_c('span',{staticClass:"k-vis-cell-page"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.panel}},[_vm._v(_vm._s(row.filename))]),_c('k-link',{staticClass:"k-vis-path",attrs:{"to":row.parent.panel}},[_vm._v(_vm._s(row.parent.title))])],1),_c('span',{staticClass:"k-vis-cell-text",attrs:{"data-level":_vm.issuesLevel(row.issues.filter(i => i.key.startsWith('alt_')))}},[(row.alt)?_c('span',[_vm._v(_vm._s(row.alt))]):(row.generated)?[_c('span',{staticClass:"k-vis-badge"},[_vm._v(_vm._s(_vm.$t('visibilizer.source.auto')))]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(row.generated))])]:_c('span',{staticClass:"k-vis-flag"},[_vm._v(_vm._s(_vm.$t('visibilizer.issue.alt_missing')))])],2),_c('span',{staticClass:"k-vis-cell-meta"},[_c('span',{class:{ 'k-vis-flag': row.issues.some(i => i.key === 'image_heavy') }},[_vm._v(_vm._s(row.niceSize))]),_c('span',{staticClass:"k-vis-muted"},[_vm._v(_vm._s(row.width)+" × "+_vm._s(row.height))])]),_c('span',{staticClass:"k-vis-actions"},[_c('k-link',{attrs:{"to":row.panel,"title":_vm.$t('visibilizer.open.panel')}},[_c('k-icon',{attrs:{"type":"edit"}})],1),_c('a',{attrs:{"href":row.url,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)],1)])})],2):_c('div',{staticClass:"k-vis-table",attrs:{"data-tab":"links"}},[_c('div',{staticClass:"k-vis-row k-vis-head"},[_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.status')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.link')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.details')))]),_c('span',[_vm._v(_vm._s(_vm.$t('visibilizer.col.from')))]),_c('span')]),_vm._l((_vm.visibleRows),function(row){return [_c('div',{key:row.href,staticClass:"k-vis-row",class:{ open: _vm.open[row.href] },on:{"click":function($event){row.from.length > 1 && _vm.toggle(row.href)}}},[_c('span',{staticClass:"k-vis-cell-status"},[_c('span',{staticClass:"k-vis-dot",attrs:{"data-level":row.result ? row.result.level : 'pending'}}),_c('span',{staticClass:"k-vis-code"},[_vm._v(_vm._s(row.result && row.result.code === 0 ? _vm.$t('visibilizer.link.code_none') : row.result && row.result.code ? row.result.code : '—'))])]),_c('span',{staticClass:"k-vis-cell-page"},[_c('span',{staticClass:"k-vis-href",attrs:{"title":row.href}},[_vm._v(_vm._s(row.label))]),_c('span',{staticClass:"k-vis-path"},[_vm._v(_vm._s(_vm.$t(row.internal ? 'visibilizer.internal' : 'visibilizer.external')))])]),_c('span',{staticClass:"k-vis-cell-text",class:{ 'k-vis-muted': !row.result }},[_vm._v(_vm._s(_vm.linkDetail(row)))]),_c('span',{staticClass:"k-vis-cell-from"},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":row.from[0].panel},nativeOn:{"click":function($event){$event.stopPropagation();}}},[_vm._v(_vm._s(row.from[0].title))]),(row.from.length > 1)?_c('span',{staticClass:"k-vis-muted",attrs:{"title":row.from.slice(1).map(f => f.title).join(', ')}},[_vm._v(_vm._s(_vm.$t('visibilizer.more', { count: row.from.length - 1 })))]):_vm._e()],1),_c('span',{staticClass:"k-vis-actions",on:{"click":function($event){$event.stopPropagation();}}},[_c('a',{attrs:{"href":row.result && row.result.internal ? row.label : row.href,"target":"_blank","rel":"noopener","title":_vm.$t('visibilizer.open.site')}},[_c('k-icon',{attrs:{"type":"open"}})],1)])]),(_vm.open[row.href])?_c('ul',{key:row.href + ':from',staticClass:"k-vis-issues k-vis-from"},_vm._l((row.from),function(f){return _c('li',{key:f.panel},[_c('k-link',{staticClass:"k-vis-link",attrs:{"to":f.panel}},[_vm._v(_vm._s(f.title))])],1)}),0):_vm._e()]})],2),(_vm.rows.length > _vm.limit && !_vm.byPage)?_c('button',{staticClass:"k-vis-button k-vis-more",attrs:{"type":"button"},on:{"click":function($event){_vm.limit += _vm.step}}},[_vm._v(" "+_vm._s(_vm.$t('visibilizer.showMore', { count: Math.min(_vm.step, _vm.rows.length - _vm.limit), total: _vm.rows.length - _vm.limit }))+" ")]):_vm._e()]),_c('p',{staticClass:"k-vis-footnote"},[_vm._v(_vm._s(_vm.$t('visibilizer.footnote')))]),_c('footer',{staticClass:"k-vis-ink k-vis-footer"},[_c('span',[_vm._v("visibilizer")]),_c('a',{attrs:{"href":"https://rollinger.design","target":"_blank","rel":"noopener"}},[_vm._v("rollinger.design")])])],2)])
+  render: (() => {
+function render(_ctx, _cache) {
+  const _component_k_visibilizer_preview = _resolveComponent("k-visibilizer-preview")
+  const _component_k_fieldset = _resolveComponent("k-fieldset")
+  const _component_k_icon = _resolveComponent("k-icon")
+  const _component_k_link = _resolveComponent("k-link")
+  const _component_k_panel_inside = _resolveComponent("k-panel-inside")
+
+  return (_openBlock(), _createBlock(_component_k_panel_inside, { class: "k-visibilizer-view" }, {
+    default: _withCtx(() => [
+      _createElementVNode("div", { class: "k-vis" }, [
+        _createElementVNode("header", { class: "k-vis-ink k-vis-header" }, [
+          _createElementVNode("h1", null, _toDisplayString(_ctx.$t('visibilizer.seo')), 1 /* TEXT */),
+          _createElementVNode("nav", { class: "k-vis-tabs" }, [
+            (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.tabs, (t) => {
+              return (_openBlock(), _createElementBlock("button", {
+                key: t.key,
+                type: "button",
+                "aria-current": t.key === _ctx.current ? 'true' : null,
+                onClick: $event => (_ctx.select(t.key))
+              }, [
+                _createTextVNode(_toDisplayString(_ctx.$t('visibilizer.tab.' + t.key)) + " ", 1 /* TEXT */),
+                (t.count !== null)
+                  ? (_openBlock(), _createElementBlock("span", {
+                      key: 0,
+                      class: "k-vis-tab-count"
+                    }, _toDisplayString(t.count), 1 /* TEXT */))
+                  : _createCommentVNode("v-if", true)
+              ], 8 /* PROPS */, ["aria-current", "onClick"]))
+            }), 128 /* KEYED_FRAGMENT */))
+          ])
+        ]),
+        (_ctx.current !== 'settings')
+          ? (_openBlock(), _createElementBlock("div", {
+              key: 0,
+              class: "k-vis-cards"
+            }, [
+              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.cards, (c) => {
+                return (_openBlock(), _createElementBlock("button", {
+                  key: c.key,
+                  type: "button",
+                  class: "k-vis-card",
+                  "data-color": c.color,
+                  onClick: $event => (_ctx.select(c.tab, c.counts.error ? 'error' : 'all'))
+                }, [
+                  _createElementVNode("span", {
+                    class: "k-vis-card-dot",
+                    "data-size": c.text.length > 3 ? 's' : 'l'
+                  }, [
+                    _createElementVNode("span", { class: "k-vis-card-value" }, _toDisplayString(c.text), 1 /* TEXT */),
+                    _createElementVNode("span", { class: "k-vis-card-unit" }, _toDisplayString(c.unit), 1 /* TEXT */)
+                  ], 8 /* PROPS */, ["data-size"]),
+                  _createElementVNode("span", { class: "k-vis-card-label" }, _toDisplayString(_ctx.$t('visibilizer.card.' + c.key)), 1 /* TEXT */),
+                  _createElementVNode("span", {
+                    class: "k-vis-card-bar",
+                    "aria-hidden": "true"
+                  }, [
+                    (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(c.segments, (s) => {
+                      return (_openBlock(), _createElementBlock("span", {
+                        key: s.level,
+                        "data-level": s.level,
+                        style: _normalizeStyle({ width: s.width + '%' })
+                      }, null, 12 /* STYLE, PROPS */, ["data-level"]))
+                    }), 128 /* KEYED_FRAGMENT */))
+                  ]),
+                  _createElementVNode("span", { class: "k-vis-card-legend" }, [
+                    (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(c.legend, (l) => {
+                      return (_openBlock(), _createElementBlock("span", {
+                        key: l.level,
+                        "data-level": l.level
+                      }, _toDisplayString(l.text), 9 /* TEXT, PROPS */, ["data-level"]))
+                    }), 128 /* KEYED_FRAGMENT */)),
+                    (!c.total)
+                      ? (_openBlock(), _createElementBlock("span", { key: 0 }, _toDisplayString(_ctx.$t('visibilizer.empty')), 1 /* TEXT */))
+                      : _createCommentVNode("v-if", true)
+                  ])
+                ], 8 /* PROPS */, ["data-color", "onClick"]))
+              }), 128 /* KEYED_FRAGMENT */))
+            ]))
+          : _createCommentVNode("v-if", true),
+        (_ctx.current !== 'settings')
+          ? (_openBlock(), _createElementBlock("div", {
+              key: 1,
+              class: "k-vis-mode"
+            }, [
+              _createElementVNode("button", {
+                type: "button",
+                class: "k-vis-switch",
+                role: "switch",
+                "aria-checked": _ctx.fallbacks ? 'true' : 'false',
+                onClick: _cache[0] || (_cache[0] = (...args) => (_ctx.toggleFallbacks && _ctx.toggleFallbacks(...args)))
+              }, [
+                _createElementVNode("span", { class: "k-vis-switch-track" }, [
+                  _createElementVNode("span", { class: "k-vis-switch-thumb" })
+                ]),
+                _createTextVNode(" " + _toDisplayString(_ctx.$t('visibilizer.fallbacks')), 1 /* TEXT */)
+              ], 8 /* PROPS */, ["aria-checked"]),
+              _createElementVNode("span", { class: "k-vis-muted" }, _toDisplayString(_ctx.$t(_ctx.fallbacks ? 'visibilizer.fallbacks.on' : 'visibilizer.fallbacks.off')), 1 /* TEXT */)
+            ]))
+          : _createCommentVNode("v-if", true),
+        (_ctx.current === 'settings')
+          ? (_openBlock(), _createElementBlock(_Fragment, { key: 2 }, [
+              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.settingsGroups, (group, i) => {
+                return (_openBlock(), _createElementBlock("section", {
+                  key: group.key,
+                  class: "k-vis-block k-vis-settings"
+                }, [
+                  (i === 0)
+                    ? (_openBlock(), _createElementBlock("div", {
+                        key: 0,
+                        class: "k-vis-settings-split"
+                      }, [
+                        _createVNode(_component_k_visibilizer_preview, {
+                          class: "k-vis-settings-preview",
+                          label: _ctx.$t('visibilizer.settings.preview'),
+                          "live-values": _ctx.form,
+                          "live-context": _ctx.previewContext,
+                          "initial-tab": "social"
+                        }, null, 8 /* PROPS */, ["label", "live-values", "live-context"]),
+                        _createVNode(_component_k_fieldset, {
+                          fields: group.fields,
+                          value: _ctx.form,
+                          novalidate: true,
+                          onInput: _cache[1] || (_cache[1] = $event => (_ctx.form = $event))
+                        }, null, 8 /* PROPS */, ["fields", "value"])
+                      ]))
+                    : (_openBlock(), _createElementBlock(_Fragment, { key: 1 }, [
+                        _createVNode(_component_k_fieldset, {
+                          fields: group.fields,
+                          value: _ctx.form,
+                          novalidate: true,
+                          onInput: _cache[2] || (_cache[2] = $event => (_ctx.form = $event))
+                        }, null, 8 /* PROPS */, ["fields", "value"]),
+                        (group.key === 'icon_headline')
+                          ? (_openBlock(), _createElementBlock("div", {
+                              key: 0,
+                              class: "k-vis-icon-state"
+                            }, [
+                              (_ctx.iconPreviews.length)
+                                ? (_openBlock(), _createElementBlock("div", {
+                                    key: 0,
+                                    class: "k-vis-icon-previews"
+                                  }, [
+                                    (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.iconPreviews, (p) => {
+                                      return (_openBlock(), _createElementBlock("figure", {
+                                        key: p.key,
+                                        "data-kind": p.key
+                                      }, [
+                                        _createElementVNode("span", { class: "k-vis-icon-frame" }, [
+                                          _createElementVNode("img", {
+                                            src: p.src,
+                                            alt: ""
+                                          }, null, 8 /* PROPS */, ["src"])
+                                        ]),
+                                        _createElementVNode("figcaption", null, [
+                                          _createTextVNode(_toDisplayString(p.label) + " ", 1 /* TEXT */),
+                                          _createElementVNode("span", { class: "k-vis-muted" }, _toDisplayString(p.size), 1 /* TEXT */)
+                                        ])
+                                      ], 8 /* PROPS */, ["data-kind"]))
+                                    }), 128 /* KEYED_FRAGMENT */))
+                                  ]))
+                                : _createCommentVNode("v-if", true),
+                              _createElementVNode("ul", { class: "k-vis-icon-checks" }, [
+                                (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.settings.icons.checks, (c) => {
+                                  return (_openBlock(), _createElementBlock("li", {
+                                    key: c.key + (c.data ? c.data.file || '' : '')
+                                  }, [
+                                    _createElementVNode("span", {
+                                      class: "k-vis-dot",
+                                      "data-level": c.level
+                                    }, null, 8 /* PROPS */, ["data-level"]),
+                                    _createTextVNode(" " + _toDisplayString(_ctx.$t('visibilizer.icon.' + c.key, c.data || {})), 1 /* TEXT */)
+                                  ]))
+                                }), 128 /* KEYED_FRAGMENT */))
+                              ])
+                            ]))
+                          : _createCommentVNode("v-if", true)
+                      ], 64 /* STABLE_FRAGMENT */))
+                ]))
+              }), 128 /* KEYED_FRAGMENT */)),
+              _createElementVNode("div", { class: "k-vis-block k-vis-settings-bar" }, [
+                (!_ctx.settings.editable)
+                  ? (_openBlock(), _createElementBlock("span", {
+                      key: 0,
+                      class: "k-vis-muted"
+                    }, _toDisplayString(_ctx.$t('visibilizer.settings.readonly')), 1 /* TEXT */))
+                  : (_ctx.settingsChanged)
+                    ? (_openBlock(), _createElementBlock("span", {
+                        key: 1,
+                        class: "k-vis-muted"
+                      }, _toDisplayString(_ctx.$t('visibilizer.settings.unsaved')), 1 /* TEXT */))
+                    : (_openBlock(), _createElementBlock("span", {
+                        key: 2,
+                        class: "k-vis-muted"
+                      }, _toDisplayString(_ctx.$t('visibilizer.settings.stored')), 1 /* TEXT */)),
+                _createElementVNode("span", { class: "k-vis-tools" }, [
+                  (_ctx.settingsChanged)
+                    ? (_openBlock(), _createElementBlock("button", {
+                        key: 0,
+                        type: "button",
+                        class: "k-vis-button",
+                        onClick: _cache[3] || (_cache[3] = (...args) => (_ctx.resetSettings && _ctx.resetSettings(...args)))
+                      }, _toDisplayString(_ctx.$t('visibilizer.settings.reset')), 1 /* TEXT */))
+                    : _createCommentVNode("v-if", true),
+                  _createElementVNode("button", {
+                    type: "button",
+                    class: "k-vis-button k-vis-button-primary",
+                    disabled: !_ctx.settingsChanged || _ctx.saving || !_ctx.settings.editable,
+                    onClick: _cache[4] || (_cache[4] = (...args) => (_ctx.saveSettings && _ctx.saveSettings(...args)))
+                  }, _toDisplayString(_ctx.$t(_ctx.saving ? 'visibilizer.settings.saving' : 'visibilizer.settings.save')), 9 /* TEXT, PROPS */, ["disabled"])
+                ])
+              ]),
+              _createElementVNode("section", { class: "k-vis-block" }, [
+                _createElementVNode("div", { class: "k-vis-files-head" }, [
+                  _createElementVNode("h2", { class: "k-vis-caption" }, _toDisplayString(_ctx.$t('visibilizer.files')), 1 /* TEXT */),
+                  (_ctx.settings.editable)
+                    ? (_openBlock(), _createElementBlock("button", {
+                        key: 0,
+                        type: "button",
+                        class: "k-vis-button",
+                        onClick: _cache[5] || (_cache[5] = (...args) => (_ctx.uploadFiles && _ctx.uploadFiles(...args)))
+                      }, [
+                        _createVNode(_component_k_icon, { type: "upload" }),
+                        _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.files.upload')), 1 /* TEXT */)
+                      ]))
+                    : _createCommentVNode("v-if", true)
+                ]),
+                (!_ctx.settings.files.length)
+                  ? (_openBlock(), _createElementBlock("p", {
+                      key: 0,
+                      class: "k-vis-message"
+                    }, _toDisplayString(_ctx.$t('visibilizer.empty')), 1 /* TEXT */))
+                  : (_openBlock(), _createElementBlock("ul", {
+                      key: 1,
+                      class: "k-vis-files"
+                    }, [
+                      (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.settings.files, (file) => {
+                        return (_openBlock(), _createElementBlock("li", {
+                          key: file.id
+                        }, [
+                          _createVNode(_component_k_link, {
+                            to: file.panel,
+                            class: "k-vis-files-thumb"
+                          }, {
+                            default: _withCtx(() => [
+                              (file.thumb)
+                                ? (_openBlock(), _createElementBlock("img", {
+                                    key: 0,
+                                    src: file.thumb,
+                                    alt: "",
+                                    loading: "lazy"
+                                  }, null, 8 /* PROPS */, ["src"]))
+                                : _createCommentVNode("v-if", true)
+                            ]),
+                            _: 2 /* DYNAMIC */
+                          }, 1032 /* PROPS, DYNAMIC_SLOTS */, ["to"]),
+                          _createElementVNode("span", { class: "k-vis-files-info" }, [
+                            _createVNode(_component_k_link, {
+                              to: file.panel,
+                              class: "k-vis-link"
+                            }, {
+                              default: _withCtx(() => [
+                                _createTextVNode(_toDisplayString(file.filename), 1 /* TEXT */)
+                              ]),
+                              _: 2 /* DYNAMIC */
+                            }, 1032 /* PROPS, DYNAMIC_SLOTS */, ["to"]),
+                            _createElementVNode("span", { class: "k-vis-path" }, [
+                              _createTextVNode(_toDisplayString(file.niceSize), 1 /* TEXT */),
+                              (file.size)
+                                ? (_openBlock(), _createElementBlock(_Fragment, { key: 0 }, [
+                                    _createTextVNode(" · " + _toDisplayString(file.size), 1 /* TEXT */)
+                                  ], 64 /* STABLE_FRAGMENT */))
+                                : _createCommentVNode("v-if", true)
+                            ]),
+                            _createElementVNode("span", { class: "k-vis-files-used" }, [
+                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.fileUsage(file), (label) => {
+                                return (_openBlock(), _createElementBlock("span", {
+                                  key: label,
+                                  class: "k-vis-badge"
+                                }, _toDisplayString(label), 1 /* TEXT */))
+                              }), 128 /* KEYED_FRAGMENT */)),
+                              (!file.used.length)
+                                ? (_openBlock(), _createElementBlock("span", {
+                                    key: 0,
+                                    class: "k-vis-badge k-vis-badge-warn"
+                                  }, _toDisplayString(_ctx.$t('visibilizer.files.unused')), 1 /* TEXT */))
+                                : _createCommentVNode("v-if", true)
+                            ])
+                          ])
+                        ]))
+                      }), 128 /* KEYED_FRAGMENT */))
+                    ]))
+              ]),
+              _createElementVNode("section", { class: "k-vis-block" }, [
+                _createElementVNode("h2", { class: "k-vis-caption" }, _toDisplayString(_ctx.$t('visibilizer.config')), 1 /* TEXT */),
+                _createElementVNode("dl", { class: "k-vis-config" }, [
+                  (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.configRows, (row) => {
+                    return (_openBlock(), _createElementBlock(_Fragment, {
+                      key: row.key
+                    }, [
+                      _createElementVNode("dt", null, _toDisplayString(row.key), 1 /* TEXT */),
+                      _createElementVNode("dd", null, _toDisplayString(row.value), 1 /* TEXT */)
+                    ], 64 /* STABLE_FRAGMENT */))
+                  }), 128 /* KEYED_FRAGMENT */))
+                ])
+              ])
+            ], 64 /* STABLE_FRAGMENT */))
+          : (_openBlock(), _createElementBlock("section", {
+              key: 3,
+              class: "k-vis-block"
+            }, [
+              _createElementVNode("div", { class: "k-vis-toolbar" }, [
+                _createElementVNode("nav", { class: "k-vis-filters" }, [
+                  (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.filters, (f) => {
+                    return (_openBlock(), _createElementBlock("button", {
+                      key: f.key,
+                      type: "button",
+                      "data-level": f.key,
+                      "aria-current": f.key === _ctx.level ? 'true' : null,
+                      disabled: !f.count && f.key !== 'all',
+                      onClick: $event => (_ctx.level = f.key)
+                    }, [
+                      (f.key !== 'all')
+                        ? (_openBlock(), _createElementBlock("span", {
+                            key: 0,
+                            class: "k-vis-dot",
+                            "data-level": f.key
+                          }, null, 8 /* PROPS */, ["data-level"]))
+                        : _createCommentVNode("v-if", true),
+                      _createTextVNode(" " + _toDisplayString(_ctx.$t(f.key === 'all' ? 'visibilizer.filter.all' : 'visibilizer.level.' + f.key)) + " ", 1 /* TEXT */),
+                      _createElementVNode("span", { class: "k-vis-muted" }, _toDisplayString(f.count), 1 /* TEXT */)
+                    ], 8 /* PROPS */, ["data-level", "aria-current", "disabled", "onClick"]))
+                  }), 128 /* KEYED_FRAGMENT */))
+                ]),
+                _createElementVNode("div", { class: "k-vis-tools" }, [
+                  (_ctx.modes[_ctx.current])
+                    ? (_openBlock(), _createElementBlock("nav", {
+                        key: 0,
+                        class: "k-vis-filters k-vis-modes"
+                      }, [
+                        (_openBlock(), _createElementBlock(_Fragment, null, _renderList(['pages', 'list'], (m) => {
+                          return _createElementVNode("button", {
+                            key: m,
+                            type: "button",
+                            "aria-current": m === _ctx.modes[_ctx.current] ? 'true' : null,
+                            onClick: $event => (_ctx.setMode(m))
+                          }, [
+                            _createVNode(_component_k_icon, {
+                              type: m === 'pages' ? 'folder' : 'list-bullet'
+                            }, null, 8 /* PROPS */, ["type"]),
+                            _createTextVNode(" " + _toDisplayString(_ctx.$t('visibilizer.images.' + m)), 1 /* TEXT */)
+                          ], 8 /* PROPS */, ["aria-current", "onClick"])
+                        }), 64 /* STABLE_FRAGMENT */))
+                      ]))
+                    : _createCommentVNode("v-if", true),
+                  (_ctx.current === 'images' && _ctx.fillable)
+                    ? (_openBlock(), _createElementBlock("button", {
+                        key: 1,
+                        type: "button",
+                        class: "k-vis-button",
+                        onClick: _cache[6] || (_cache[6] = (...args) => (_ctx.fill && _ctx.fill(...args)))
+                      }, [
+                        _createVNode(_component_k_icon, { type: "wand" }),
+                        _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.fill')) + " (" + _toDisplayString(_ctx.fillable) + ")", 1 /* TEXT */)
+                      ]))
+                    : _createCommentVNode("v-if", true),
+                  (_ctx.current === 'links' && _ctx.links.length)
+                    ? (_openBlock(), _createElementBlock("button", {
+                        key: 2,
+                        type: "button",
+                        class: "k-vis-button",
+                        disabled: !!_ctx.checking,
+                        onClick: _cache[7] || (_cache[7] = (...args) => (_ctx.recheck && _ctx.recheck(...args)))
+                      }, [
+                        _createVNode(_component_k_icon, { type: "refresh" }),
+                        (_ctx.checking)
+                          ? (_openBlock(), _createElementBlock("span", { key: 0 }, _toDisplayString(_ctx.$t('visibilizer.checking', _ctx.checking)), 1 /* TEXT */))
+                          : (_openBlock(), _createElementBlock("span", { key: 1 }, _toDisplayString(_ctx.$t('visibilizer.recheck')), 1 /* TEXT */))
+                      ], 8 /* PROPS */, ["disabled"]))
+                    : _createCommentVNode("v-if", true),
+                  _createElementVNode("label", { class: "k-vis-search" }, [
+                    _createVNode(_component_k_icon, { type: "search" }),
+                    _withDirectives(_createElementVNode("input", {
+                      "onUpdate:modelValue": _cache[8] || (_cache[8] = $event => ((_ctx.query) = $event)),
+                      type: "search",
+                      placeholder: _ctx.$t('visibilizer.search')
+                    }, null, 8 /* PROPS */, ["placeholder"]), [
+                      [_vModelText, _ctx.query]
+                    ])
+                  ])
+                ])
+              ]),
+              (!_ctx.source(_ctx.current).length)
+                ? (_openBlock(), _createElementBlock("p", {
+                    key: 0,
+                    class: "k-vis-message"
+                  }, _toDisplayString(_ctx.$t('visibilizer.empty')), 1 /* TEXT */))
+                : (!_ctx.rows.length)
+                  ? (_openBlock(), _createElementBlock("p", {
+                      key: 1,
+                      class: "k-vis-message"
+                    }, _toDisplayString(_ctx.$t('visibilizer.empty.filter')), 1 /* TEXT */))
+                  : (_ctx.current === 'pages')
+                    ? (_openBlock(), _createElementBlock(_Fragment, { key: 2 }, [
+                        _createCommentVNode(" Pages "),
+                        _createElementVNode("div", {
+                          class: "k-vis-table",
+                          "data-tab": "pages"
+                        }, [
+                          _createElementVNode("div", { class: "k-vis-row k-vis-head" }, [
+                            _createElementVNode("span"),
+                            _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.page')), 1 /* TEXT */),
+                            _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.title')), 1 /* TEXT */),
+                            _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.description')), 1 /* TEXT */),
+                            _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.image')), 1 /* TEXT */),
+                            _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.index')), 1 /* TEXT */),
+                            _createElementVNode("span")
+                          ]),
+                          (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.visibleRows, (row) => {
+                            return (_openBlock(), _createElementBlock(_Fragment, {
+                              key: row.id
+                            }, [
+                              _createElementVNode("div", {
+                                class: _normalizeClass(["k-vis-row", { open: _ctx.open[row.id] }]),
+                                onClick: $event => (_ctx.toggle(row.id))
+                              }, [
+                                _createElementVNode("span", {
+                                  class: "k-vis-dot",
+                                  "data-level": _ctx.pageLevel(row),
+                                  title: _ctx.$t('visibilizer.level.' + _ctx.pageLevel(row))
+                                }, null, 8 /* PROPS */, ["data-level", "title"]),
+                                _createElementVNode("span", { class: "k-vis-cell-page" }, [
+                                  _createVNode(_component_k_link, {
+                                    to: row.panel,
+                                    class: "k-vis-link",
+                                    onClick: _cache[9] || (_cache[9] = _withModifiers(() => {}, ["stop"]))
+                                  }, {
+                                    default: _withCtx(() => [
+                                      _createTextVNode(_toDisplayString(row.title), 1 /* TEXT */)
+                                    ]),
+                                    _: 2 /* DYNAMIC */
+                                  }, 1032 /* PROPS, DYNAMIC_SLOTS */, ["to"]),
+                                  _createElementVNode("span", {
+                                    class: "k-vis-path",
+                                    title: row.path
+                                  }, _toDisplayString(row.path), 9 /* TEXT, PROPS */, ["title"])
+                                ]),
+                                _createElementVNode("span", {
+                                  class: "k-vis-cell-text",
+                                  "data-level": _ctx.checkLevel(row.checks.title)
+                                }, [
+                                  (row.metaTitle.source !== 'custom')
+                                    ? (_openBlock(), _createElementBlock("span", {
+                                        key: 0,
+                                        class: "k-vis-badge"
+                                      }, _toDisplayString(_ctx.sourceLabel(row.metaTitle)), 1 /* TEXT */))
+                                    : _createCommentVNode("v-if", true),
+                                  _createElementVNode("span", {
+                                    class: _normalizeClass({ 'k-vis-muted': row.metaTitle.source !== 'custom' })
+                                  }, _toDisplayString(row.metaTitle.value), 3 /* TEXT, CLASS */)
+                                ], 8 /* PROPS */, ["data-level"]),
+                                _createElementVNode("span", {
+                                  class: "k-vis-cell-text k-vis-clamp",
+                                  "data-level": _ctx.checkLevel(row.checks.description)
+                                }, [
+                                  (row.description.source !== 'custom' && row.description.source !== 'none')
+                                    ? (_openBlock(), _createElementBlock("span", {
+                                        key: 0,
+                                        class: "k-vis-badge"
+                                      }, _toDisplayString(_ctx.sourceLabel(row.description)), 1 /* TEXT */))
+                                    : _createCommentVNode("v-if", true),
+                                  (row.description.value)
+                                    ? (_openBlock(), _createElementBlock("span", {
+                                        key: 1,
+                                        class: _normalizeClass({ 'k-vis-muted': row.description.source !== 'custom' })
+                                      }, _toDisplayString(row.description.value), 3 /* TEXT, CLASS */))
+                                    : (_openBlock(), _createElementBlock("span", {
+                                        key: 2,
+                                        class: "k-vis-muted"
+                                      }, _toDisplayString(_ctx.$t('visibilizer.none')), 1 /* TEXT */))
+                                ], 8 /* PROPS */, ["data-level"]),
+                                _createElementVNode("span", {
+                                  class: "k-vis-cell-thumb",
+                                  "data-level": _ctx.checkLevel(row.checks.image)
+                                }, [
+                                  (row.image && row.image.thumb)
+                                    ? (_openBlock(), _createElementBlock("img", {
+                                        key: 0,
+                                        src: row.image.thumb,
+                                        alt: "",
+                                        loading: "lazy"
+                                      }, null, 8 /* PROPS */, ["src"]))
+                                    : _createCommentVNode("v-if", true),
+                                  (row.image && row.image.source !== 'custom')
+                                    ? (_openBlock(), _createElementBlock("span", {
+                                        key: 1,
+                                        class: "k-vis-badge k-vis-thumb-badge",
+                                        title: _ctx.sourceLabel(row.image)
+                                      }, _toDisplayString(row.image.source === 'field' ? row.image.field : _ctx.sourceLabel(row.image)), 9 /* TEXT, PROPS */, ["title"]))
+                                    : _createCommentVNode("v-if", true)
+                                ], 8 /* PROPS */, ["data-level"]),
+                                _createElementVNode("span", { class: "k-vis-cell-index" }, [
+                                  _createElementVNode("span", {
+                                    class: "k-vis-dot",
+                                    "data-level": row.indexable ? 'ok' : 'off',
+                                    title: row.indexable ? _ctx.$t('visibilizer.indexable') : _ctx.$t('visibilizer.noindex', { robots: row.robots })
+                                  }, null, 8 /* PROPS */, ["data-level", "title"])
+                                ]),
+                                _createElementVNode("span", {
+                                  class: "k-vis-actions",
+                                  onClick: _cache[10] || (_cache[10] = _withModifiers(() => {}, ["stop"]))
+                                }, [
+                                  _createVNode(_component_k_link, {
+                                    to: row.panel,
+                                    title: _ctx.$t('visibilizer.open.panel')
+                                  }, {
+                                    default: _withCtx(() => [
+                                      _createVNode(_component_k_icon, { type: "edit" })
+                                    ]),
+                                    _: 1 /* STABLE */
+                                  }, 8 /* PROPS */, ["to", "title"]),
+                                  _createElementVNode("a", {
+                                    href: row.url,
+                                    target: "_blank",
+                                    rel: "noopener",
+                                    title: _ctx.$t('visibilizer.open.site')
+                                  }, [
+                                    _createVNode(_component_k_icon, { type: "open" })
+                                  ], 8 /* PROPS */, ["href", "title"])
+                                ])
+                              ], 10 /* CLASS, PROPS */, ["onClick"]),
+                              (_ctx.open[row.id])
+                                ? (_openBlock(), _createElementBlock("ul", {
+                                    key: 0,
+                                    class: "k-vis-issues"
+                                  }, [
+                                    (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.issues(row), (i, n) => {
+                                      return (_openBlock(), _createElementBlock("li", {
+                                        key: n,
+                                        class: _normalizeClass({ 'k-vis-muted': !_ctx.counts(i) })
+                                      }, _toDisplayString(_ctx.issue(i)), 3 /* TEXT, CLASS */))
+                                    }), 128 /* KEYED_FRAGMENT */)),
+                                    (!_ctx.issues(row).length)
+                                      ? (_openBlock(), _createElementBlock("li", {
+                                          key: 0,
+                                          "data-level": "ok"
+                                        }, _toDisplayString(_ctx.$t('visibilizer.level.ok')), 1 /* TEXT */))
+                                      : _createCommentVNode("v-if", true)
+                                  ]))
+                                : _createCommentVNode("v-if", true)
+                            ], 64 /* STABLE_FRAGMENT */))
+                          }), 128 /* KEYED_FRAGMENT */))
+                        ])
+                      ], 2112 /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */))
+                    : (_ctx.byPage)
+                      ? (_openBlock(), _createElementBlock(_Fragment, { key: 3 }, [
+                          _createCommentVNode(" Par page (images, liens) : un parent se déplie, une page ouvre son tiroir "),
+                          _createElementVNode("div", {
+                            class: "k-vis-table",
+                            "data-tab": "by-page",
+                            "data-kind": _ctx.current
+                          }, [
+                            _createElementVNode("div", { class: "k-vis-row k-vis-head" }, [
+                              _createElementVNode("span"),
+                              (_ctx.current === 'images')
+                                ? (_openBlock(), _createElementBlock("span", { key: 0 }))
+                                : _createCommentVNode("v-if", true),
+                              _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.page')), 1 /* TEXT */),
+                              _createElementVNode("span", null, _toDisplayString(_ctx.$t(_ctx.current === 'images' ? 'visibilizer.col.alt' : 'visibilizer.col.status')), 1 /* TEXT */),
+                              _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.tab.' + _ctx.current)), 1 /* TEXT */),
+                              _createElementVNode("span")
+                            ]),
+                            (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.pageRows, (row) => {
+                              return (_openBlock(), _createElementBlock("div", {
+                                key: row.node.id,
+                                class: "k-vis-row",
+                                "data-depth": row.depth,
+                                onClick: $event => (_ctx.clickNode(row))
+                              }, [
+                                _createElementVNode("span", {
+                                  class: "k-vis-dot",
+                                  "data-level": row.level,
+                                  title: _ctx.$t('visibilizer.level.' + (row.level === 'pending' ? 'ok' : row.level))
+                                }, null, 8 /* PROPS */, ["data-level", "title"]),
+                                (_ctx.current === 'images')
+                                  ? (_openBlock(), _createElementBlock("span", {
+                                      key: 0,
+                                      class: "k-vis-stack"
+                                    }, [
+                                      (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(row.thumbs, (i) => {
+                                        return (_openBlock(), _createElementBlock("img", {
+                                          key: i.id,
+                                          src: i.thumb,
+                                          alt: "",
+                                          loading: "lazy"
+                                        }, null, 8 /* PROPS */, ["src"]))
+                                      }), 128 /* KEYED_FRAGMENT */))
+                                    ]))
+                                  : _createCommentVNode("v-if", true),
+                                _createElementVNode("span", {
+                                  class: "k-vis-cell-page k-vis-cell-tree",
+                                  style: _normalizeStyle({ paddingLeft: row.depth * 1.25 + 'rem' })
+                                }, [
+                                  _createElementVNode("span", { class: "k-vis-link" }, [
+                                    (row.node.children.length)
+                                      ? (_openBlock(), _createBlock(_component_k_icon, {
+                                          key: 0,
+                                          type: row.open ? 'angle-down' : 'angle-right',
+                                          class: "k-vis-chevron"
+                                        }, null, 8 /* PROPS */, ["type"]))
+                                      : _createCommentVNode("v-if", true),
+                                    _createTextVNode(" " + _toDisplayString(row.node.title), 1 /* TEXT */)
+                                  ]),
+                                  _createElementVNode("span", {
+                                    class: "k-vis-path",
+                                    title: row.node.path
+                                  }, [
+                                    _createTextVNode(_toDisplayString(row.node.path), 1 /* TEXT */),
+                                    (row.pages)
+                                      ? (_openBlock(), _createElementBlock(_Fragment, { key: 0 }, [
+                                          _createTextVNode(" · " + _toDisplayString(_ctx.$t('visibilizer.subpages', { count: row.pages })), 1 /* TEXT */)
+                                        ], 64 /* STABLE_FRAGMENT */))
+                                      : _createCommentVNode("v-if", true)
+                                  ], 8 /* PROPS */, ["title"])
+                                ], 4 /* STYLE */),
+                                _createElementVNode("span", {
+                                  class: "k-vis-cell-text k-vis-legend",
+                                  "data-level": row.legendLevel || row.level
+                                }, [
+                                  (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(row.legend, (l) => {
+                                    return (_openBlock(), _createElementBlock("span", {
+                                      key: l.level,
+                                      "data-level": l.level
+                                    }, _toDisplayString(l.text), 9 /* TEXT, PROPS */, ["data-level"]))
+                                  }), 128 /* KEYED_FRAGMENT */))
+                                ], 8 /* PROPS */, ["data-level"]),
+                                _createElementVNode("span", { class: "k-vis-cell-meta" }, [
+                                  _createElementVNode("span", null, _toDisplayString(row.total), 1 /* TEXT */),
+                                  (row.heavy)
+                                    ? (_openBlock(), _createElementBlock("span", {
+                                        key: 0,
+                                        class: "k-vis-flag"
+                                      }, _toDisplayString(_ctx.$t('visibilizer.images.heavy', { count: row.heavy })), 1 /* TEXT */))
+                                    : _createCommentVNode("v-if", true)
+                                ]),
+                                _createElementVNode("span", {
+                                  class: "k-vis-actions",
+                                  onClick: _cache[11] || (_cache[11] = _withModifiers(() => {}, ["stop"]))
+                                }, [
+                                  (row.node.items.length)
+                                    ? (_openBlock(), _createElementBlock("button", {
+                                        key: 0,
+                                        type: "button",
+                                        title: _ctx.$t(_ctx.current === 'images' ? 'visibilizer.images.open' : 'visibilizer.links.open'),
+                                        onClick: $event => (_ctx.openNode(row.node))
+                                      }, [
+                                        _createVNode(_component_k_icon, {
+                                          type: _ctx.current === 'images' ? 'image' : 'url'
+                                        }, null, 8 /* PROPS */, ["type"])
+                                      ], 8 /* PROPS */, ["title", "onClick"]))
+                                    : _createCommentVNode("v-if", true),
+                                  (row.node.panel)
+                                    ? (_openBlock(), _createBlock(_component_k_link, {
+                                        key: 1,
+                                        to: row.node.panel,
+                                        title: _ctx.$t('visibilizer.open.panel')
+                                      }, {
+                                        default: _withCtx(() => [
+                                          _createVNode(_component_k_icon, { type: "edit" })
+                                        ]),
+                                        _: 1 /* STABLE */
+                                      }, 8 /* PROPS */, ["to", "title"]))
+                                    : _createCommentVNode("v-if", true)
+                                ])
+                              ], 8 /* PROPS */, ["data-depth", "onClick"]))
+                            }), 128 /* KEYED_FRAGMENT */))
+                          ], 8 /* PROPS */, ["data-kind"])
+                        ], 2112 /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */))
+                      : (_ctx.current === 'images')
+                        ? (_openBlock(), _createElementBlock(_Fragment, { key: 4 }, [
+                            _createCommentVNode(" Images "),
+                            _createElementVNode("div", {
+                              class: "k-vis-table",
+                              "data-tab": "images"
+                            }, [
+                              _createElementVNode("div", { class: "k-vis-row k-vis-head" }, [
+                                _createElementVNode("span"),
+                                _createElementVNode("span"),
+                                _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.file')), 1 /* TEXT */),
+                                _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.alt')), 1 /* TEXT */),
+                                _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.weight')), 1 /* TEXT */),
+                                _createElementVNode("span")
+                              ]),
+                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.visibleRows, (row) => {
+                                return (_openBlock(), _createElementBlock("div", {
+                                  key: row.id,
+                                  class: "k-vis-row"
+                                }, [
+                                  _createElementVNode("span", {
+                                    class: "k-vis-dot",
+                                    "data-level": _ctx.levelOf(row),
+                                    title: row.issues.map(_ctx.issue).join(' · ') || _ctx.$t('visibilizer.level.ok')
+                                  }, null, 8 /* PROPS */, ["data-level", "title"]),
+                                  _createElementVNode("span", { class: "k-vis-cell-thumb" }, [
+                                    (row.thumb)
+                                      ? (_openBlock(), _createElementBlock("img", {
+                                          key: 0,
+                                          src: row.thumb,
+                                          alt: "",
+                                          loading: "lazy"
+                                        }, null, 8 /* PROPS */, ["src"]))
+                                      : _createCommentVNode("v-if", true)
+                                  ]),
+                                  _createElementVNode("span", { class: "k-vis-cell-page" }, [
+                                    _createVNode(_component_k_link, {
+                                      to: row.panel,
+                                      class: "k-vis-link"
+                                    }, {
+                                      default: _withCtx(() => [
+                                        _createTextVNode(_toDisplayString(row.filename), 1 /* TEXT */)
+                                      ]),
+                                      _: 2 /* DYNAMIC */
+                                    }, 1032 /* PROPS, DYNAMIC_SLOTS */, ["to"]),
+                                    _createVNode(_component_k_link, {
+                                      to: row.parent.panel,
+                                      class: "k-vis-path"
+                                    }, {
+                                      default: _withCtx(() => [
+                                        _createTextVNode(_toDisplayString(row.parent.title), 1 /* TEXT */)
+                                      ]),
+                                      _: 2 /* DYNAMIC */
+                                    }, 1032 /* PROPS, DYNAMIC_SLOTS */, ["to"])
+                                  ]),
+                                  _createElementVNode("span", {
+                                    class: "k-vis-cell-text",
+                                    "data-level": _ctx.issuesLevel(row.issues.filter(i => i.key.startsWith('alt_')))
+                                  }, [
+                                    (row.alt)
+                                      ? (_openBlock(), _createElementBlock("span", { key: 0 }, _toDisplayString(row.alt), 1 /* TEXT */))
+                                      : (row.generated)
+                                        ? (_openBlock(), _createElementBlock(_Fragment, { key: 1 }, [
+                                            _createElementVNode("span", { class: "k-vis-badge" }, _toDisplayString(_ctx.$t('visibilizer.source.auto')), 1 /* TEXT */),
+                                            _createElementVNode("span", { class: "k-vis-muted" }, _toDisplayString(row.generated), 1 /* TEXT */)
+                                          ], 64 /* STABLE_FRAGMENT */))
+                                        : (_openBlock(), _createElementBlock("span", {
+                                            key: 2,
+                                            class: "k-vis-flag"
+                                          }, _toDisplayString(_ctx.$t('visibilizer.issue.alt_missing')), 1 /* TEXT */))
+                                  ], 8 /* PROPS */, ["data-level"]),
+                                  _createElementVNode("span", { class: "k-vis-cell-meta" }, [
+                                    _createElementVNode("span", {
+                                      class: _normalizeClass({ 'k-vis-flag': row.issues.some(i => i.key === 'image_heavy') })
+                                    }, _toDisplayString(row.niceSize), 3 /* TEXT, CLASS */),
+                                    _createElementVNode("span", { class: "k-vis-muted" }, _toDisplayString(row.width) + " × " + _toDisplayString(row.height), 1 /* TEXT */)
+                                  ]),
+                                  _createElementVNode("span", { class: "k-vis-actions" }, [
+                                    _createVNode(_component_k_link, {
+                                      to: row.panel,
+                                      title: _ctx.$t('visibilizer.open.panel')
+                                    }, {
+                                      default: _withCtx(() => [
+                                        _createVNode(_component_k_icon, { type: "edit" })
+                                      ]),
+                                      _: 1 /* STABLE */
+                                    }, 8 /* PROPS */, ["to", "title"]),
+                                    _createElementVNode("a", {
+                                      href: row.url,
+                                      target: "_blank",
+                                      rel: "noopener",
+                                      title: _ctx.$t('visibilizer.open.site')
+                                    }, [
+                                      _createVNode(_component_k_icon, { type: "open" })
+                                    ], 8 /* PROPS */, ["href", "title"])
+                                  ])
+                                ]))
+                              }), 128 /* KEYED_FRAGMENT */))
+                            ])
+                          ], 2112 /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */))
+                        : (_openBlock(), _createElementBlock(_Fragment, { key: 5 }, [
+                            _createCommentVNode(" Liens "),
+                            _createElementVNode("div", {
+                              class: "k-vis-table",
+                              "data-tab": "links"
+                            }, [
+                              _createElementVNode("div", { class: "k-vis-row k-vis-head" }, [
+                                _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.status')), 1 /* TEXT */),
+                                _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.link')), 1 /* TEXT */),
+                                _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.details')), 1 /* TEXT */),
+                                _createElementVNode("span", null, _toDisplayString(_ctx.$t('visibilizer.col.from')), 1 /* TEXT */),
+                                _createElementVNode("span")
+                              ]),
+                              (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(_ctx.visibleRows, (row) => {
+                                return (_openBlock(), _createElementBlock(_Fragment, {
+                                  key: row.href
+                                }, [
+                                  _createElementVNode("div", {
+                                    class: _normalizeClass(["k-vis-row", { open: _ctx.open[row.href] }]),
+                                    onClick: $event => (row.from.length > 1 && _ctx.toggle(row.href))
+                                  }, [
+                                    _createElementVNode("span", { class: "k-vis-cell-status" }, [
+                                      _createElementVNode("span", {
+                                        class: "k-vis-dot",
+                                        "data-level": row.result ? row.result.level : 'pending'
+                                      }, null, 8 /* PROPS */, ["data-level"]),
+                                      _createElementVNode("span", { class: "k-vis-code" }, _toDisplayString(row.result && row.result.code === 0 ? _ctx.$t('visibilizer.link.code_none') : row.result && row.result.code ? row.result.code : '—'), 1 /* TEXT */)
+                                    ]),
+                                    _createElementVNode("span", { class: "k-vis-cell-page" }, [
+                                      _createElementVNode("span", {
+                                        class: "k-vis-href",
+                                        title: row.href
+                                      }, _toDisplayString(row.label), 9 /* TEXT, PROPS */, ["title"]),
+                                      _createElementVNode("span", { class: "k-vis-path" }, _toDisplayString(_ctx.$t(row.internal ? 'visibilizer.internal' : 'visibilizer.external')), 1 /* TEXT */)
+                                    ]),
+                                    _createElementVNode("span", {
+                                      class: _normalizeClass(["k-vis-cell-text", { 'k-vis-muted': !row.result }])
+                                    }, _toDisplayString(_ctx.linkDetail(row)), 3 /* TEXT, CLASS */),
+                                    _createElementVNode("span", { class: "k-vis-cell-from" }, [
+                                      _createVNode(_component_k_link, {
+                                        to: row.from[0].panel,
+                                        class: "k-vis-link",
+                                        onClick: _cache[12] || (_cache[12] = _withModifiers(() => {}, ["stop"]))
+                                      }, {
+                                        default: _withCtx(() => [
+                                          _createTextVNode(_toDisplayString(row.from[0].title), 1 /* TEXT */)
+                                        ]),
+                                        _: 2 /* DYNAMIC */
+                                      }, 1032 /* PROPS, DYNAMIC_SLOTS */, ["to"]),
+                                      (row.from.length > 1)
+                                        ? (_openBlock(), _createElementBlock("span", {
+                                            key: 0,
+                                            class: "k-vis-muted",
+                                            title: row.from.slice(1).map(f => f.title).join(', ')
+                                          }, _toDisplayString(_ctx.$t('visibilizer.more', { count: row.from.length - 1 })), 9 /* TEXT, PROPS */, ["title"]))
+                                        : _createCommentVNode("v-if", true)
+                                    ]),
+                                    _createElementVNode("span", {
+                                      class: "k-vis-actions",
+                                      onClick: _cache[13] || (_cache[13] = _withModifiers(() => {}, ["stop"]))
+                                    }, [
+                                      _createElementVNode("a", {
+                                        href: row.result && row.result.internal ? row.label : row.href,
+                                        target: "_blank",
+                                        rel: "noopener",
+                                        title: _ctx.$t('visibilizer.open.site')
+                                      }, [
+                                        _createVNode(_component_k_icon, { type: "open" })
+                                      ], 8 /* PROPS */, ["href", "title"])
+                                    ])
+                                  ], 10 /* CLASS, PROPS */, ["onClick"]),
+                                  (_ctx.open[row.href])
+                                    ? (_openBlock(), _createElementBlock("ul", {
+                                        key: 0,
+                                        class: "k-vis-issues k-vis-from"
+                                      }, [
+                                        (_openBlock(true), _createElementBlock(_Fragment, null, _renderList(row.from, (f) => {
+                                          return (_openBlock(), _createElementBlock("li", {
+                                            key: f.panel
+                                          }, [
+                                            _createVNode(_component_k_link, {
+                                              to: f.panel,
+                                              class: "k-vis-link"
+                                            }, {
+                                              default: _withCtx(() => [
+                                                _createTextVNode(_toDisplayString(f.title), 1 /* TEXT */)
+                                              ]),
+                                              _: 2 /* DYNAMIC */
+                                            }, 1032 /* PROPS, DYNAMIC_SLOTS */, ["to"])
+                                          ]))
+                                        }), 128 /* KEYED_FRAGMENT */))
+                                      ]))
+                                    : _createCommentVNode("v-if", true)
+                                ], 64 /* STABLE_FRAGMENT */))
+                              }), 128 /* KEYED_FRAGMENT */))
+                            ])
+                          ], 2112 /* STABLE_FRAGMENT, DEV_ROOT_FRAGMENT */)),
+              (_ctx.rows.length > _ctx.limit && !_ctx.byPage)
+                ? (_openBlock(), _createElementBlock("button", {
+                    key: 6,
+                    type: "button",
+                    class: "k-vis-button k-vis-more",
+                    onClick: _cache[14] || (_cache[14] = $event => (_ctx.limit += _ctx.step))
+                  }, _toDisplayString(_ctx.$t('visibilizer.showMore', { count: Math.min(_ctx.step, _ctx.rows.length - _ctx.limit), total: _ctx.rows.length - _ctx.limit })), 1 /* TEXT */))
+                : _createCommentVNode("v-if", true)
+            ])),
+        _createElementVNode("p", { class: "k-vis-footnote" }, _toDisplayString(_ctx.$t('visibilizer.footnote')), 1 /* TEXT */),
+        _createElementVNode("footer", { class: "k-vis-ink k-vis-footer" }, [
+          _createElementVNode("span", null, "visibilizer"),
+          _createElementVNode("a", {
+            href: "https://rollinger.design",
+            target: "_blank",
+            rel: "noopener"
+          }, "rollinger.design")
+        ])
+      ])
+    ]),
+    _: 1 /* STABLE */
+  }))
 }
-var staticRenderFns = []
-return { render, staticRenderFns }
+return render
 })(),
 }
 
 panel.plugin('rllngr/kirby-visibilizer', {
-  sections: {
+  fields: {
     'seo-preview': SeoPreview,
   },
   components: {

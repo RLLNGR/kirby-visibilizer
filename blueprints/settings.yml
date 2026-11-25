@@ -34,7 +34,7 @@ seo_description:
     fr: "Reprise par toute page qui n'a ni sa propre description ni champ de repli. Idéal : 120–160 caractères."
 
 og_image:
-  type: files
+  type: filepicker
   label:
     en: Default share image
     fr: Image de partage par défaut
@@ -62,7 +62,7 @@ icon_headline:
   numbered: false
 
 icon_png:
-  type: files
+  type: filepicker
   label:
     en: Icon (PNG)
     fr: Icône (PNG)
@@ -78,7 +78,7 @@ icon_png:
     fr: "Obligatoire. Carré, au moins 512×512 px : favicon, icônes d'écran d'accueil et manifeste en sont générés à l'enregistrement."
 
 icon_svg:
-  type: files
+  type: filepicker
   label:
     en: Icon (SVG)
     fr: Icône (SVG)

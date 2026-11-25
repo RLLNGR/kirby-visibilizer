@@ -10,7 +10,7 @@ const readPref = () => {
   }
 }
 
-// Section « Aperçu SEO » des pages (aperçu Google / réseaux sociaux + contrôles), valeurs lues en direct.
+// Champ « Aperçu SEO » des pages (aperçu Google / réseaux sociaux + contrôles), valeurs lues en direct.
 const SeoPreview = {
 
   // -----------------------------------------------------------------------
@@ -32,6 +32,7 @@ const SeoPreview = {
 
   data() {
     return {
+      fileUrls: {},
       tab: this.initialTab,
       ctx: this.liveContext || {
         siteTitle: '',
@@ -61,14 +62,7 @@ const SeoPreview = {
     values() {
       if (this.liveValues) return this.liveValues;
       try {
-        // Kirby 5
-        if (this.$panel?.content?.version) {
-          return this.$panel.content.version('changes') || {};
-        }
-        // Kirby 4
-        const id    = this.$store.state.content?.current;
-        const model = this.$store.state.content?.models?.[id];
-        return { ...model?.originals, ...model?.changes };
+        return this.$panel.content.version('changes') || {};
       } catch {
         return {};
       }
@@ -296,11 +290,20 @@ const SeoPreview = {
   // -----------------------------------------------------------------------
 
   methods: {
-    // Champ fichiers : Kirby 5 donne [{ image: { url } }, …] dans les valeurs en direct
+    // Champ fichiers : Kirby 6 ne garde que des UUID dans les valeurs en direct (« file://… ») ;
+    // l'adresse est demandée une fois au serveur, puis gardée.
     fileUrl(value) {
       const first = Array.isArray(value) ? value[0] : null;
-      if (!first || typeof first !== 'object') return null;
-      return first.image?.url || first.url || null;
+      if (!first) return null;
+      if (typeof first === 'object') return first.image?.url || first.url || null;
+      if (!(first in this.fileUrls)) {
+        this.fileUrls[first] = null;
+        this.$api
+          .get('rllngr/visibilizer-file', { id: first })
+          .then(res => (this.fileUrls[first] = res?.url || null))
+          .catch(() => {});
+      }
+      return this.fileUrls[first];
     },
 
     // Noms des replis pour les messages ; une fonction n'a pas de nom de champ
@@ -333,7 +336,7 @@ const SeoPreview = {
     async loadContext() {
       try {
         // e.g. "pages/projects+hospitality" or "site"
-        const parent = this.parent || this.$panel?.view?.props?.api || this.$store?.state?.content?.current || '';
+        const parent = this.parent || this.$panel?.view?.props?.api || '';
         const match  = parent.replace(/^\//, '').match(/^pages\/(.+)$/);
         const slug   = match ? match[1].replace(/\//g, '+') : 'site';
         const data = await this.$api.get(`rllngr/visibilizer/${slug}`);
@@ -349,7 +352,7 @@ const SeoPreview = {
   // -----------------------------------------------------------------------
 
   template: `
-    <k-section :label="resolvedLabel">
+    <k-field :label="resolvedLabel" :input="false" class="k-seo-preview-field">
       <div class="vis-preview">
 
         <!-- Score badge -->
@@ -448,7 +451,7 @@ const SeoPreview = {
         </ul>
 
       </div>
-    </k-section>
+    </k-field>
   `,
 };
 
@@ -546,8 +549,8 @@ const AltsDrawer = {
       for (const row of rows) {
         const n = this.items.findIndex(i => i.id === row.id)
         if (n === -1) continue
-        this.$set(this.items, n, row)
-        this.$set(this.drafts, row.id, row.alt)
+        this.items[n] = row
+        this.drafts[row.id] = row.alt
       }
       this.onSaved(rows)
     },
@@ -558,19 +561,19 @@ const AltsDrawer = {
     async save(item) {
       const value = (this.drafts[item.id] || '').trim()
       if (value === item.alt || this.saving[item.id]) return
-      this.$set(this.saving, item.id, true)
+      this.saving[item.id] = true
       try {
         const row = await this.$api.post('rllngr/visibilizer-audit/alt', { id: item.id, alt: value })
         this.replace([row])
-        this.$set(this.done, item.id, true)
+        this.done[item.id] = true
       } catch (e) {
         this.$panel.notification.error(e)
       } finally {
-        this.$set(this.saving, item.id, false)
+        this.saving[item.id] = false
       }
     },
     useGenerated(item) {
-      this.$set(this.drafts, item.id, item.generated)
+      this.drafts[item.id] = item.generated
       this.save(item)
     },
     // Entrée : enregistre et passe à l'image suivante (Maj + Entrée pour un retour à la ligne)
@@ -597,7 +600,7 @@ const AltsDrawer = {
       if (!visible) this.flush()
     },
   },
-  beforeDestroy() {
+  beforeUnmount() {
     this.flush()
   },
   template: `
@@ -642,7 +645,7 @@ const AltsDrawer = {
               rows="2"
               :value="drafts[item.id]"
               :placeholder="item.generated || $t('visibilizer.alts.placeholder')"
-              @input="$set(drafts, item.id, $event.target.value); $set(done, item.id, false)"
+              @input="drafts[item.id] = $event.target.value; done[item.id] = false"
               @blur="save(item)"
               @keydown.enter.exact.prevent="next"
             ></textarea>
@@ -1011,14 +1014,14 @@ const SeoView = {
       window.history.replaceState(window.history.state, '', url)
     },
     toggle(key) {
-      this.$set(this.open, key, !this.open[key])
+      this.open[key] = !this.open[key]
     },
     // Compteurs des textes alternatifs : « 1 image décrite » / « 3 images décrites »
     countText(key, count) {
       return this.$t(key + (count === 1 && key.startsWith('visibilizer.count.alts.') ? '.one' : ''), { count })
     },
     setMode(mode) {
-      this.$set(this.modes, this.current, mode)
+      this.modes[this.current] = mode
       this.limit = LIMIT
       try {
         window.localStorage.setItem('visibilizer.' + this.current, mode)
@@ -1068,7 +1071,7 @@ const SeoView = {
     },
     // Clic sur une ligne : un parent se replie / se déplie, une page ouvre son tiroir
     clickNode(row) {
-      if (row.node.children.length) this.$set(this.expanded, row.node.id, !row.open)
+      if (row.node.children.length) this.expanded[row.node.id] = !row.open
       else this.openNode(row.node)
     },
     openNode(n) {
@@ -1099,7 +1102,7 @@ const SeoView = {
           page: { id: group.id, title: group.title, path: group.path, panel: group.panel },
           images: group.items,
           only: this.level !== 'all',
-          onSaved: rows => rows.forEach(row => this.$set(this.saved, row.id, row)),
+          onSaved: rows => rows.forEach(row => this.saved[row.id] = row),
         },
         on: {
           submit: () => this.$panel.drawer.close(),
@@ -1129,10 +1132,10 @@ const SeoView = {
         const batch = hrefs.slice(i, i + BATCH)
         try {
           const res = await this.$api.post('rllngr/visibilizer-audit/links', { hrefs: batch, force })
-          for (const href of Object.keys(res || {})) this.$set(this.results, href, res[href])
+          for (const href of Object.keys(res || {})) this.results[href] = res[href]
         } catch (e) {
           // Le lot reste sans résultat, signalé sur ses lignes ; une seule notification pour toute la passe
-          for (const href of batch) this.$set(this.failed, href, true)
+          for (const href of batch) this.failed[href] = true
           error = e
         }
         this.checking.done = Math.min(hrefs.length, i + BATCH)
@@ -1242,8 +1245,8 @@ const SeoView = {
         </div>
 
         <template v-if="current === 'settings'">
-          <template v-for="(group, i) in settingsGroups">
-            <section :key="group.key" class="k-vis-block k-vis-settings">
+          <template v-for="(group, i) in settingsGroups" :key="group.key">
+            <section class="k-vis-block k-vis-settings">
               <div v-if="i === 0" class="k-vis-settings-split">
                 <k-visibilizer-preview
                   class="k-vis-settings-preview"
@@ -1314,9 +1317,9 @@ const SeoView = {
           <section class="k-vis-block">
             <h2 class="k-vis-caption">{{ $t('visibilizer.config') }}</h2>
             <dl class="k-vis-config">
-              <template v-for="row in configRows">
-                <dt :key="row.key + ':k'">{{ row.key }}</dt>
-                <dd :key="row.key + ':v'">{{ row.value }}</dd>
+              <template v-for="row in configRows" :key="row.key">
+                <dt>{{ row.key }}</dt>
+                <dd>{{ row.value }}</dd>
               </template>
             </dl>
           </section>
@@ -1382,11 +1385,11 @@ const SeoView = {
               <span>{{ $t('visibilizer.col.index') }}</span>
               <span></span>
             </div>
-            <template v-for="row in visibleRows">
-              <div :key="row.id" class="k-vis-row" :class="{ open: open[row.id] }" @click="toggle(row.id)">
+            <template v-for="row in visibleRows" :key="row.id">
+              <div class="k-vis-row" :class="{ open: open[row.id] }" @click="toggle(row.id)">
                 <span class="k-vis-dot" :data-level="pageLevel(row)" :title="$t('visibilizer.level.' + pageLevel(row))"></span>
                 <span class="k-vis-cell-page">
-                  <k-link :to="row.panel" class="k-vis-link" @click.native.stop>{{ row.title }}</k-link>
+                  <k-link :to="row.panel" class="k-vis-link" @click.stop>{{ row.title }}</k-link>
                   <span class="k-vis-path" :title="row.path">{{ row.path }}</span>
                 </span>
                 <span class="k-vis-cell-text" :data-level="checkLevel(row.checks.title)">
@@ -1410,7 +1413,7 @@ const SeoView = {
                   <a :href="row.url" target="_blank" rel="noopener" :title="$t('visibilizer.open.site')"><k-icon type="open" /></a>
                 </span>
               </div>
-              <ul v-if="open[row.id]" :key="row.id + ':issues'" class="k-vis-issues">
+              <ul v-if="open[row.id]" class="k-vis-issues">
                 <li v-for="(i, n) in issues(row)" :key="n" :class="{ 'k-vis-muted': !counts(i) }">{{ issue(i) }}</li>
                 <li v-if="!issues(row).length" data-level="ok">{{ $t('visibilizer.level.ok') }}</li>
               </ul>
@@ -1507,8 +1510,8 @@ const SeoView = {
               <span>{{ $t('visibilizer.col.from') }}</span>
               <span></span>
             </div>
-            <template v-for="row in visibleRows">
-              <div :key="row.href" class="k-vis-row" :class="{ open: open[row.href] }" @click="row.from.length > 1 && toggle(row.href)">
+            <template v-for="row in visibleRows" :key="row.href">
+              <div class="k-vis-row" :class="{ open: open[row.href] }" @click="row.from.length > 1 && toggle(row.href)">
                 <span class="k-vis-cell-status">
                   <span class="k-vis-dot" :data-level="row.result ? row.result.level : 'pending'"></span>
                   <span class="k-vis-code">{{ row.result && row.result.code === 0 ? $t('visibilizer.link.code_none') : row.result && row.result.code ? row.result.code : '—' }}</span>
@@ -1519,14 +1522,14 @@ const SeoView = {
                 </span>
                 <span class="k-vis-cell-text" :class="{ 'k-vis-muted': !row.result }">{{ linkDetail(row) }}</span>
                 <span class="k-vis-cell-from">
-                  <k-link :to="row.from[0].panel" class="k-vis-link" @click.native.stop>{{ row.from[0].title }}</k-link>
+                  <k-link :to="row.from[0].panel" class="k-vis-link" @click.stop>{{ row.from[0].title }}</k-link>
                   <span v-if="row.from.length > 1" class="k-vis-muted" :title="row.from.slice(1).map(f => f.title).join(', ')">{{ $t('visibilizer.more', { count: row.from.length - 1 }) }}</span>
                 </span>
                 <span class="k-vis-actions" @click.stop>
                   <a :href="row.result && row.result.internal ? row.label : row.href" target="_blank" rel="noopener" :title="$t('visibilizer.open.site')"><k-icon type="open" /></a>
                 </span>
               </div>
-              <ul v-if="open[row.href]" :key="row.href + ':from'" class="k-vis-issues k-vis-from">
+              <ul v-if="open[row.href]" class="k-vis-issues k-vis-from">
                 <li v-for="f in row.from" :key="f.panel"><k-link :to="f.panel" class="k-vis-link">{{ f.title }}</k-link></li>
               </ul>
             </template>
@@ -1553,7 +1556,7 @@ const SeoView = {
 }
 
 panel.plugin('rllngr/kirby-visibilizer', {
-  sections: {
+  fields: {
     'seo-preview': SeoPreview,
   },
   components: {
